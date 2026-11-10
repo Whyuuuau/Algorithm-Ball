@@ -25,9 +25,8 @@ export const TransportBar: React.FC<{
       <div className="flex items-center gap-2">
         <button
           onClick={() => setIsPlaying(!isPlaying)}
-          className={`p-2 rounded-lg font-bold flex items-center justify-center transition-all cursor-pointer ${
-            isPlaying ? "bg-amber-500 hover:bg-amber-400 text-slate-950" : "bg-cyan-500 hover:bg-cyan-400 text-slate-950"
-          }`}
+          className={`p-2 rounded-lg font-bold flex items-center justify-center transition-all cursor-pointer ${isPlaying ? "bg-amber-500 hover:bg-amber-400 text-slate-950" : "bg-cyan-500 hover:bg-cyan-400 text-slate-950"
+            }`}
           title={isPlaying ? "Pause" : "Play Live"}
         >
           {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}

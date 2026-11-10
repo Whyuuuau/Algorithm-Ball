@@ -28,3 +28,4 @@ export function createArena(
       return createBoids(width, height, rng, merged);
   }
 }
+

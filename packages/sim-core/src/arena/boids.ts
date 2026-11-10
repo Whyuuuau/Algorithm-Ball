@@ -192,3 +192,4 @@ export const createBoids: ArenaFactory = (width, height, rng, params): ArenaAlgo
     ]
   };
 };
+

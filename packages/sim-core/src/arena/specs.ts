@@ -27,3 +27,4 @@ export function arenaDefaults(id: ArenaId): Record<string, number> {
   for (const s of ARENA_PARAM_SPECS[id]) out[s.key] = s.default;
   return out;
 }
+
