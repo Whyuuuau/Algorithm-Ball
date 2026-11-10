@@ -16,3 +16,4 @@ Sistem ini dirancang 100% sebagai **Client-Side Single Page Application (SPA)** 
   - **IndexedDB / LocalStorage:** Menyimpan riwayat preset kustom (`ProjectConfig` v2 format JSON) dengan batas aman kuota browser (< 10 MB).
   - **Memory Buffer Storage:** Menyimpan buffer PCM audio hasil render offline dan chunks terenkripsi MP4 sementara saat proses ekspor sebelum diunduh pengguna sebagai file Blob (`.mp4`).
   - **No Sensitive / PII Data:** Tidak ada data kredensial, kunci otentikasi, atau data privasi pengguna yang disimpan atau ditransmisikan keluar.
+

@@ -18,3 +18,4 @@
 | **Audio Peak & Headroom** | Analisis output PCM dari OfflineAudioContext. | Peak level audio $\le -1\text{ dBFS}$, tanpa clipping, tanpa nilai `NaN` atau `Infinity`, tanpa DC offset. |
 | **WebCodecs MP4 Smoke Test** | Ekspor render 3 detik pada 540×960 dan 1080×1920. | File MP4 berukuran wajar, dapat diputar sempurna di media player standar dengan audio AAC stereo. |
 | **Memory Leak & VRAM** | Eksekusi render 60 detik penuh (3.600 frame). | Penggunaan heap memory JS stabil, tidak terjadi crash `Out of Memory` atau WebGL context loss. |
+

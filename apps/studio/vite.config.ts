@@ -12,15 +12,21 @@ export default defineConfig({
       "@asmr/render-core": path.resolve(__dirname, "../../packages/render-core/src")
     }
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom", "zustand", "lucide-react"],
+          muxer: ["mediabunny"]
+        }
+      }
+    }
+  },
   server: {
     port: 5173,
     headers: {
-      // Cross-origin isolation headers for SharedArrayBuffer / WebCodecs / Workers if needed
       "Cross-Origin-Opener-Policy": "same-origin",
       "Cross-Origin-Embedder-Policy": "require-corp"
     }
-  },
-  optimizeDeps: {
-    exclude: ["@dimforge/rapier2d-deterministic-compat"]
   }
 });

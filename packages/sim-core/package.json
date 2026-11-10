@@ -5,7 +5,6 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "dependencies": {
-    "@asmr/schema": "*",
-    "@dimforge/rapier2d-deterministic-compat": "^0.21.0"
+    "@asmr/schema": "*"
   }
 }

@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "jsx": "react-jsx",
+    "types": ["vite/client"],
+    "paths": {
+      "@asmr/schema": ["packages/schema/src/index.ts"],
+      "@asmr/sim-core": ["packages/sim-core/src/index.ts"],
+      "@asmr/audio-core": ["packages/audio-core/src/index.ts"],
+      "@asmr/render-core": ["packages/render-core/src/index.ts"]
+    }
+  },
+  "include": ["packages/*/src", "packages/*/test", "apps/studio/src"]
+}
+

@@ -1,164 +1,61 @@
-import { ProjectConfig } from "./schema.js";
+import { ProjectConfig, ProjectConfigInput, ProjectConfigSchema } from "./schema.js";
 
-export const CLASSIC_3_TOWERS_PRESET: ProjectConfig = {
-  version: "2.0",
+const make = (input: ProjectConfigInput): ProjectConfig => ProjectConfigSchema.parse(input);
+
+/** 3 lane Tower Breaker – "siapa pecahkan lantai 10 duluan". */
+export const CLASSIC_3_TOWERS_PRESET: ProjectConfig = make({
   seed: 20261110,
-  meta: {
-    title: "Classic 3 Towers - 60s",
-    duration_sec: 60,
-    fps: 60,
-    width: 1080,
-    height: 1920
-  },
-  arc: {
-    hook_text: "1 MENIT. 3 TOWER.\nSIAPA PECAHKAN LANTAI 10?",
-    tension_curve: [
-      [0, 0.2],
-      [0.1, 0.35],
-      [0.55, 0.6],
-      [0.85, 1.0],
-      [1, 0.4]
-    ],
-    loop_outro_sec: 0.6
-  },
-  physics: {
-    pixels_per_meter: 20,
-    gravity: [0, 9.81],
-    substeps: 4,
-    max_speed: 60,
-    restitution_default: 0.98,
-    ball_ball_collision: false,
-    physical_cap: 3000
-  },
+  meta: { title: "3 Towers - 60s" },
+  scene: { type: "TOWER_BREAKER" }
+});
+
+/** Exponential HP, 2 lanes, glass-bell palette. */
+export const DUEL_2_LANES_PRESET: ProjectConfig = make({
+  seed: 777,
+  meta: { title: "Duel 2 Lanes - 45s", duration_sec: 45 },
+  arc: { hook_text: "2 TOWER. 1 PEMENANG.\nSIAPA LEBIH CEPAT?" },
+  sound: { palette: "glass_bell", scale: { root: "D4", mode: "dorian", octaves: 3 } },
   scene: {
     type: "TOWER_BREAKER",
-    floors_hp: {
-      mode: "manual",
-      values: [76, 900, 3000, 4500, 7500, 12000, 18000, 24000, 30000, 45000]
-    },
+    floors_hp: { mode: "exponential", base: 30, growth: 2.3, count: 9 },
     lanes: [
-      {
-        id: "left",
-        label: "x100 / FLOOR",
-        color: "#00e5ff",
-        initial_balls: 1,
-        ball_radius: 8,
-        on_floor_break: { op: "MULTIPLY", value: 100 }
-      },
-      {
-        id: "center",
-        label: "x5 / FLOOR",
-        color: "#ff00aa",
-        initial_balls: 50,
-        ball_radius: 6,
-        on_floor_break: { op: "MULTIPLY", value: 5 }
-      },
-      {
-        id: "right",
-        label: "+1,000 / FLOOR",
-        color: "#d4ff00",
-        initial_balls: 500,
-        ball_radius: 5,
-        on_floor_break: { op: "ADD", value: 1000 }
-      }
+      { id: "red", label: "x3 / LANTAI", color: "#ff3b6b", initial_balls: 3, ball_radius: 8, on_floor_break: { op: "MULTIPLY", value: 3 } },
+      { id: "blue", label: "+200 / LANTAI", color: "#3b9bff", initial_balls: 40, ball_radius: 6, on_floor_break: { op: "ADD", value: 200 } }
     ],
-    anti_stalemate_sec: 8
-  },
-  sound: {
-    palette: "kalimba_glow",
-    scale: {
-      root: "C4",
-      mode: "pentatonic_major",
-      octaves: 3
-    },
-    quantizer: {
-      mode: "HARMONIC",
-      bpm: 120,
-      progression: ["I", "V", "vi", "IV"],
-      snap_ms: 30
-    },
-    chord_on_density: {
-      window_ms: 30,
-      min_hits: 6
-    },
-    cooldown_ms: 18,
-    polyphony: 48,
-    spatial: {
-      pan: "constant_power",
-      y_filter: true,
-      hrtf: false
-    },
-    escalation: {
-      pitch_semitones_per_floor: 0.5,
-      riser_sec: 3.5
-    },
-    limiter: {
-      lookahead_ms: 5,
-      ceiling_db: -1
-    }
-  },
-  look: {
-    background: "#060609",
-    bloom: {
-      enabled: true,
-      threshold: 0.2,
-      intensity: 1.5,
-      blur: 8
-    },
-    trail: {
-      enabled: true,
-      fade_alpha: 0.18
-    },
-    pitch_hue: true,
-    safe_flash: true,
-    metaball: false,
-    hud: {
-      font: "sans-serif",
-      timer_y: 280,
-      show_safe_zones: false
-    }
-  },
-  rules: []
-};
-
-export const MAZE_RINGS_PRESET: ProjectConfig = {
-  ...CLASSIC_3_TOWERS_PRESET,
-  meta: {
-    title: "12 Concentric Rings Maze",
-    duration_sec: 60,
-    fps: 60,
-    width: 1080,
-    height: 1920
-  },
-  arc: {
-    hook_text: "12 CINCIN. 1 JALUR KELUAR.\nBISAKAH SEMUA LOLOS?",
-    tension_curve: [
-      [0, 0.15],
-      [0.3, 0.4],
-      [0.7, 0.75],
-      [0.9, 1.0],
-      [1, 0.3]
-    ],
-    loop_outro_sec: 0.6
-  },
-  scene: {
-    type: "MAZE_ESCAPE",
-    container_shape: "RINGS",
-    initial_balls: 25,
-    ball_radius: 6,
-    spawn_point: [0, 0],
-    exit_zone_radius: 50,
-    balls_to_escape: 150,
-    rings: [
-      { radius: 100, segments: 1, thickness: 12, angular_speed: 1.2, gap_angle_deg: 45, durability: 0 },
-      { radius: 180, segments: 1, thickness: 12, angular_speed: -0.9, gap_angle_deg: 40, durability: 0 },
-      { radius: 260, segments: 1, thickness: 12, angular_speed: 1.5, gap_angle_deg: 35, durability: 0 },
-      { radius: 340, segments: 1, thickness: 12, angular_speed: -1.1, gap_angle_deg: 30, durability: 0 },
-      { radius: 420, segments: 1, thickness: 12, angular_speed: 0.8, gap_angle_deg: 25, durability: 0 }
-    ]
-  },
-  sound: {
-    ...CLASSIC_3_TOWERS_PRESET.sound,
-    palette: "glass_bell"
+    pegs: { rows: 6, per_row: 5 }
   }
+});
+
+/** Concentric rotating rings, zero gravity. */
+export const MAZE_RINGS_PRESET: ProjectConfig = make({
+  seed: 4242,
+  meta: { title: "5 Cincin Maze - 60s" },
+  arc: { hook_text: "5 CINCIN. 1 JALUR KELUAR.\nBISAKAH SEMUA LOLOS?", tension_curve: [[0, 0.15], [0.3, 0.4], [0.7, 0.75], [0.9, 1], [1, 0.3]] },
+  physics: { gravity: [0, 0], speed_lock: 26, restitution_default: 1, bounce_kick: 0 },
+  sound: { palette: "marimba_wood", scale: { root: "C4", mode: "pentatonic_minor", octaves: 3 } },
+  scene: { type: "MAZE_ESCAPE" }
+});
+
+const arena = (title: string, algorithm: "FALLING_SAND" | "TSP_2OPT" | "BFS_LIGHTNING" | "BOIDS", palette: "kalimba_glow" | "glass_bell" | "water_drop" | "marimba_wood", hook: string): ProjectConfig =>
+  make({
+    seed: 99,
+    meta: { title },
+    arc: { hook_text: hook },
+    sound: { palette, quantizer: { mode: "HARMONIC" } },
+    scene: { type: "ALGORITHM_ARENA", algorithm }
+  });
+
+export const SAND_PRESET = arena("Falling Sand Alchemist", "FALLING_SAND", "water_drop", "PASIR + LAVA + AIR\nAPA YANG TERJADI?");
+export const TSP_PRESET = arena("TSP 2-Opt", "TSP_2OPT", "glass_bell", "RUTE TERPENDEK\nDITEMUKAN DALAM 60 DETIK");
+export const LIGHTNING_PRESET = arena("BFS vs Petir", "BFS_LIGHTNING", "kalimba_glow", "BFS vs PETIR\nSIAPA TIBA DULUAN?");
+export const BOIDS_PRESET = arena("Boids vs Lubang Hitam", "BOIDS", "glass_bell", "RIBUAN BURUNG\nMELAWAN LUBANG HITAM");
+
+export const PRESETS: Record<string, { label: string; config: ProjectConfig }> = {
+  classic_3_towers: { label: "3 Towers", config: CLASSIC_3_TOWERS_PRESET },
+  duel_2_lanes: { label: "Duel 2 Lanes", config: DUEL_2_LANES_PRESET },
+  maze_rings: { label: "Maze Rings", config: MAZE_RINGS_PRESET },
+  falling_sand: { label: "Falling Sand", config: SAND_PRESET },
+  tsp_2opt: { label: "TSP 2-Opt", config: TSP_PRESET },
+  bfs_lightning: { label: "BFS vs Petir", config: LIGHTNING_PRESET },
+  boids: { label: "Boids vs Black Hole", config: BOIDS_PRESET }
 };

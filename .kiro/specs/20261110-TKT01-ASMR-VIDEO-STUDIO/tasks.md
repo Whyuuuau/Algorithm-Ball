@@ -49,3 +49,4 @@
 - [ ] **Task 5.1:** Seed Scout Web Worker runner (menjalankan 64 seed headless).
 - [ ] **Task 5.2:** Formula kalkulasi Climax Score dan pratinjau 5 seed terbaik.
 - [ ] **Task 5.3:** Stress testing performa: 60 FPS stabil pada 3.000 bola preview, render 1080×1920 export tanpa kebocoran memori.
+

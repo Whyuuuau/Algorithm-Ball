@@ -63,3 +63,4 @@ Konfigurasi matrik palette:
    - Pemicuan nada langsung memutar buffer yang ada tanpa re-sintesis gelombang di live preview maupun offline rendering.
 3. **Canvas Offscreen & WebCodecs Direct Transfer:**
    - Frame dari WebGL2 context langsung diekstrak via `VideoFrame` / canvas source tanpa `gl.readPixels()` blocking ke CPU memory.
+

@@ -1,177 +1,82 @@
-export interface PhysicalBallState {
-  id: number;
-  laneId: string;
-  laneIdx: number;
+import { BallPool } from "../engine/BallPool.js";
+
+export interface SpawnPlan {
+  /** physical balls to create */
+  alloc: number;
+  /** weight (damage / virtual units) of every new physical ball */
   weight: number;
-  baseRadius: number;
-  colorR: number;
-  colorG: number;
-  colorB: number;
-  active: boolean;
-  bodyHandle: number; // Rapier RigidBody handle
+  /** if > 1 the pool is full: multiply existing lane weights by this factor instead */
+  scaleExisting: number;
 }
 
+/**
+ * Separates virtual population (HUD number, can reach millions) from physical bodies
+ * (hard capped). When the cap is reached extra population is folded into ball weight.
+ */
 export class PopulationGovernor {
-  public readonly physicalCap: number;
-  private virtualCounts: Map<string, number> = new Map();
-  private totalVirtual: number = 0;
-  private activePhysicalCount: number = 0;
+  public readonly cap: number;
+  /** virtual population per lane */
+  public virtual: Float64Array;
 
-  // Ball pool
-  private pool: PhysicalBallState[] = [];
-  private activeBalls: PhysicalBallState[] = [];
-
-  constructor(physicalCap: number = 3000) {
-    this.physicalCap = physicalCap;
+  constructor(cap: number, lanes: number) {
+    this.cap = cap;
+    this.virtual = new Float64Array(Math.max(1, lanes));
   }
 
   public reset(): void {
-    this.virtualCounts.clear();
-    this.totalVirtual = 0;
-    this.activePhysicalCount = 0;
-    for (const b of this.pool) {
-      b.active = false;
-      b.weight = 1;
+    this.virtual.fill(0);
+  }
+
+  public totalVirtual(): number {
+    let s = 0;
+    for (let i = 0; i < this.virtual.length; i++) s += this.virtual[i];
+    return s;
+  }
+
+  /** Pure planning function (unit-tested). */
+  public static plan(freeSlots: number, laneVirtual: number, add: number): SpawnPlan {
+    if (add <= 0) return { alloc: 0, weight: 1, scaleExisting: 1 };
+    if (freeSlots > 0) {
+      const alloc = Math.min(Math.floor(add), freeSlots);
+      return { alloc, weight: Math.max(1, Math.ceil(add / Math.max(1, alloc))), scaleExisting: 1 };
     }
-    this.activeBalls.length = 0;
-  }
-
-  public getVirtualCount(laneId: string): number {
-    return this.virtualCounts.get(laneId) || 0;
-  }
-
-  public getTotalVirtual(): number {
-    return this.totalVirtual;
-  }
-
-  public getActivePhysicalCount(): number {
-    return this.activePhysicalCount;
-  }
-
-  public getActiveBalls(): readonly PhysicalBallState[] {
-    return this.activeBalls;
+    const scale = laneVirtual > 0 ? (laneVirtual + add) / laneVirtual : 1;
+    return { alloc: 0, weight: 1, scaleExisting: scale };
   }
 
   /**
-   * Plan spawn allocation adhering to physical cap and weight scaling.
-   * Returns: { allocPhysical: number, weightPerBall: number, scaleExisting: number }
+   * Add `add` virtual balls to `laneIdx`. `place(i, n)` returns [x,y,vx,vy] for the i-th new body.
+   * Returns number of physical bodies created.
    */
-  public planSpawn(
-    laneId: string,
-    virtualCountToAdd: number
-  ): {
-    allocPhysical: number;
-    weightPerBall: number;
-    scaleExisting: number;
-  } {
-    const currentV = this.virtualCounts.get(laneId) || 0;
-    const currentP = this.activePhysicalCount;
-    const availableSlots = Math.max(0, this.physicalCap - currentP);
-
-    let allocPhysical = 0;
-    let weightPerBall = 1;
-    let scaleExisting = 1;
-
-    if (availableSlots > 0 && virtualCountToAdd > 0) {
-      allocPhysical = Math.min(virtualCountToAdd, availableSlots);
-      weightPerBall = Math.max(1, Math.ceil(virtualCountToAdd / allocPhysical));
-    } else if (currentV > 0 && virtualCountToAdd > 0) {
-      scaleExisting = (currentV + virtualCountToAdd) / currentV;
-    }
-
-    return { allocPhysical, weightPerBall, scaleExisting };
-  }
-
-  /**
-   * Commit the spawn results
-   */
-  public commitSpawn(
-    laneId: string,
-    virtualCountToAdd: number,
-    allocatedBalls: PhysicalBallState[]
-  ): void {
-    const currentV = this.virtualCounts.get(laneId) || 0;
-    this.virtualCounts.set(laneId, currentV + virtualCountToAdd);
-    this.totalVirtual += virtualCountToAdd;
-
-    for (const ball of allocatedBalls) {
-      ball.active = true;
-      this.activeBalls.push(ball);
-      this.activePhysicalCount++;
-    }
-  }
-
-  /**
-   * Apply scaling to all existing active balls in a lane
-   */
-  public scaleLaneWeights(laneId: string, scaleFactor: number): void {
-    if (scaleFactor <= 1) return;
-    for (const ball of this.activeBalls) {
-      if (ball.laneId === laneId) {
-        ball.weight *= scaleFactor;
-      }
-    }
-  }
-
-  /**
-   * Recycle an inactive ball
-   */
-  public recycleBall(ball: PhysicalBallState): void {
-    ball.active = false;
-    const idx = this.activeBalls.indexOf(ball);
-    if (idx !== -1) {
-      this.activeBalls.splice(idx, 1);
-      this.activePhysicalCount--;
-    }
-  }
-
-  /**
-   * Get an unused ball from pool or create new pool entry
-   */
-  public acquirePoolBall(
-    id: number,
-    laneId: string,
+  public spawn(
+    pool: BallPool,
     laneIdx: number,
-    weight: number,
-    baseRadius: number,
-    color: [number, number, number],
-    bodyHandle: number
-  ): PhysicalBallState {
-    let ball = this.pool.find((b) => !b.active);
-    if (!ball) {
-      ball = {
-        id,
-        laneId,
-        laneIdx,
-        weight,
-        baseRadius,
-        colorR: color[0],
-        colorG: color[1],
-        colorB: color[2],
-        active: true,
-        bodyHandle
-      };
-      this.pool.push(ball);
-    } else {
-      ball.id = id;
-      ball.laneId = laneId;
-      ball.laneIdx = laneIdx;
-      ball.weight = weight;
-      ball.baseRadius = baseRadius;
-      ball.colorR = color[0];
-      ball.colorG = color[1];
-      ball.colorB = color[2];
-      ball.active = true;
-      ball.bodyHandle = bodyHandle;
+    add: number,
+    baseR: number,
+    place: (i: number, out: Float64Array) => void
+  ): number {
+    add = Math.floor(add);
+    if (add <= 0) return 0;
+    const plan = PopulationGovernor.plan(pool.cap - pool.count, this.virtual[laneIdx], add);
+    this.virtual[laneIdx] += add;
+
+    if (plan.alloc === 0) {
+      if (plan.scaleExisting > 1) {
+        for (let i = 0; i < pool.count; i++) {
+          if (pool.lane[i] === laneIdx) pool.setWeight(i, pool.w[i] * plan.scaleExisting);
+        }
+      }
+      return 0;
     }
-    return ball;
+    const tmp = this.tmp;
+    let made = 0;
+    for (let k = 0; k < plan.alloc; k++) {
+      place(k, tmp);
+      if (pool.add(tmp[0], tmp[1], tmp[2], tmp[3], baseR, plan.weight, laneIdx) < 0) break;
+      made++;
+    }
+    return made;
   }
 
-  /**
-   * Sub-linear visual radius formula: r = r_base * (1 + 0.15 * log10(weight))
-   */
-  public static calculateVisualRadius(baseRadius: number, weight: number): number {
-    if (weight <= 1) return baseRadius;
-    return baseRadius * (1 + 0.15 * Math.log10(weight));
-  }
+  private readonly tmp = new Float64Array(4);
 }

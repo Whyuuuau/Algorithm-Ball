@@ -1,10 +1,10 @@
-import { ProjectConfig } from "@asmr/schema";
+import type { ProjectConfig } from "@asmr/schema";
 import { SimCore } from "@asmr/sim-core";
 
 export interface ScoutedSeedResult {
   seed: number;
   climaxScore: number;
-  winnerLaneId: string | null;
+  winnerLabel: string;
   totalHits: number;
   finishTimeSec: number;
   scoreBreakdown: {
@@ -17,63 +17,73 @@ export interface ScoutedSeedResult {
 }
 
 export class SeedScout {
-  public static async evaluateSeed(
-    baseConfig: ProjectConfig,
-    seed: number
-  ): Promise<ScoutedSeedResult> {
-    const config: ProjectConfig = {
-      ...baseConfig,
-      seed
-    };
+  public static evaluateSeedSync(baseConfig: ProjectConfig, seed: number): ScoutedSeedResult {
+    const config: ProjectConfig = { ...baseConfig, seed };
+    const sim = new SimCore(config, { render: false });
+    sim.initSync();
 
-    const sim = new SimCore(config);
-    await sim.init();
+    const totalFrames = sim.totalFrames;
+    const fps = config.meta.fps;
+    const laneCount = config.scene.type === "TOWER_BREAKER" ? config.scene.lanes.length : 1;
 
-    const totalFrames = Math.round(config.meta.duration_sec * config.meta.fps);
-    const uniqueNotes = new Set<number>();
-    let lastLeadLane: string | null = null;
+    let leadLane = -1;
     let leadChanges = 0;
-    let lastQuarterHits = 0;
+    let finishFrame = totalFrames;
+    const activeSeconds = new Uint8Array(Math.max(1, Math.ceil(config.meta.duration_sec)));
 
     for (let f = 0; f < totalFrames; f++) {
       const snap = sim.step();
-
-      // Track lead changes
-      if (snap.floors.length > 0) {
-        let maxFloor = 0;
-        let leadLane: string | null = null;
-        for (const floor of snap.floors) {
-          if (floor.broken && floor.floorIndex > maxFloor) {
-            maxFloor = floor.floorIndex;
-            leadLane = floor.laneId;
+      if (laneCount > 1 && (f & 7) === 0) {
+        let bestL = -1;
+        let bestP = 0;
+        for (let l = 0; l < laneCount; l++) {
+          const p = sim.laneProgress(l);
+          if (p > bestP) {
+            bestP = p;
+            bestL = l;
           }
         }
-        if (leadLane && leadLane !== lastLeadLane) {
-          leadChanges++;
-          lastLeadLane = leadLane;
+        if (bestL >= 0 && bestL !== leadLane) {
+          if (leadLane >= 0) leadChanges++;
+          leadLane = bestL;
         }
       }
-
-      if (snap.winnerLaneId) {
-        // Winner reached
-        break;
+      if (snap.winnerLane >= 0 && finishFrame === totalFrames) {
+        finishFrame = f;
       }
     }
 
-    const hitLog = sim.getHitLog();
-    for (const h of hitLog) {
-      uniqueNotes.add(h.note);
-      if (h.t >= config.meta.duration_sec * 0.75) {
-        lastQuarterHits++;
-      }
+    const hits = sim.getHitLog();
+    const pitchClasses = new Set<number>();
+    let lastQuarterHits = 0;
+    const qStart = config.meta.duration_sec * 0.75;
+
+    for (const h of hits) {
+      const sec = Math.floor(h.t);
+      if (sec >= 0 && sec < activeSeconds.length) activeSeconds[sec] = 1;
+      pitchClasses.add(((h.index * 3 + h.lane * 5 + Math.round(h.x * 12)) % 16 + 16) % 16);
+      if (h.t >= qStart) lastQuarterHits++;
     }
 
-    // Climax metrics
-    const closeness = Math.min(1.0, leadChanges / 4);
-    const leadChangesNorm = Math.min(1.0, leadChanges / 3);
-    const finalDensity = hitLog.length > 0 ? Math.min(1.0, (lastQuarterHits / hitLog.length) * 2) : 0.5;
-    const noStalemate = hitLog.length > 50 ? 1.0 : 0.5;
-    const noteVariety = Math.min(1.0, uniqueNotes.size / 15);
+    let activeSecCount = 0;
+    for (let i = 0; i < activeSeconds.length; i++) activeSecCount += activeSeconds[i];
+
+    // Closeness: for multi-lane, 1 - gap between #1 and #2 progress; for single-lane, closeness of finish to duration
+    let closeness = 0.6;
+    if (laneCount > 1) {
+      const progs: number[] = [];
+      for (let l = 0; l < laneCount; l++) progs.push(sim.laneProgress(l));
+      progs.sort((a, b) => b - a);
+      closeness = Math.max(0, Math.min(1, 1 - Math.abs((progs[0] ?? 0) - (progs[1] ?? 0))));
+    } else {
+      closeness = Math.max(0, Math.min(1, finishFrame / Math.max(1, totalFrames)));
+    }
+
+    const leadChangesNorm = laneCount > 1 ? Math.min(1, leadChanges / 4) : Math.min(1, hits.length / 400);
+    const avgQuarter = Math.max(1, hits.length / 4);
+    const finalDensity = Math.max(0, Math.min(1, (lastQuarterHits / avgQuarter) * 0.65));
+    const noStalemate = activeSecCount / Math.max(1, activeSeconds.length);
+    const noteVariety = Math.min(1, pitchClasses.size / 12);
 
     const score =
       0.3 * closeness +
@@ -82,38 +92,43 @@ export class SeedScout {
       0.15 * noStalemate +
       0.1 * noteVariety;
 
+    let winnerLabel = "Draw";
+    if (config.scene.type === "TOWER_BREAKER") {
+      const w = sim.winner();
+      if (w >= 0 && config.scene.lanes[w]) winnerLabel = config.scene.lanes[w].label;
+      else if (leadLane >= 0 && config.scene.lanes[leadLane]) winnerLabel = config.scene.lanes[leadLane].label;
+    } else {
+      winnerLabel = `${Math.round(sim.laneProgress(0) * 100)}%`;
+    }
+
     return {
       seed,
-      climaxScore: Math.round(score * 100) / 100,
-      winnerLaneId: lastLeadLane,
-      totalHits: hitLog.length,
-      finishTimeSec: config.meta.duration_sec,
+      climaxScore: Math.round(score * 1000) / 1000,
+      winnerLabel,
+      totalHits: hits.length,
+      finishTimeSec: Math.round((finishFrame / fps) * 10) / 10,
       scoreBreakdown: {
-        closeness,
-        leadChanges: leadChangesNorm,
-        finalDensity,
-        noStalemate,
-        noteVariety
+        closeness: Math.round(closeness * 100) / 100,
+        leadChanges: Math.round(leadChangesNorm * 100) / 100,
+        finalDensity: Math.round(finalDensity * 100) / 100,
+        noStalemate: Math.round(noStalemate * 100) / 100,
+        noteVariety: Math.round(noteVariety * 100) / 100
       }
     };
   }
 
   public static async scoutTopSeeds(
     baseConfig: ProjectConfig,
-    count: number = 8,
+    count: number = 16,
     onProgress?: (progressPercent: number) => void
   ): Promise<ScoutedSeedResult[]> {
     const results: ScoutedSeedResult[] = [];
     const baseSeed = baseConfig.seed || 20261110;
 
     for (let i = 0; i < count; i++) {
-      const seedCandidate = baseSeed + i * 17 + 1;
-      const res = await this.evaluateSeed(baseConfig, seedCandidate);
-      results.push(res);
-
-      if (onProgress) {
-        onProgress(Math.round(((i + 1) / count) * 100));
-      }
+      const candidate = (baseSeed + i * 7919) >>> 0;
+      results.push(this.evaluateSeedSync(baseConfig, candidate));
+      if (onProgress) onProgress(Math.round(((i + 1) / count) * 100));
       await new Promise((r) => setTimeout(r, 0));
     }
 

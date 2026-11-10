@@ -17,3 +17,4 @@ Pada rendering video beresolusi tinggi (1080×1920 @ 60 FPS) berbasis fisika dan
    - Pass 1 (Headless): Menjalankan simulasi tanpa render grafis untuk mengumpulkan `HitLog` dan merender stereo PCM audio via `OfflineAudioContext`.
    - Pass 2 (Streaming Encoding): Menginisialisasi ulang simulasi dengan seed identik, menggambar frame, dan langsung mengirimkannya ke `VideoEncoder` via `mediabunny.CanvasSource` tanpa menyimpan raw frame RGBA di memori.
 3. **Discrete Frame-Based Audio Timestamps:** Mengikat waktu audio tepat pada $\text{frame} \times \Delta t$ alih-alih `performance.now()`, memastikan preview dan hasil export berbunyi 100% sinkron.
+

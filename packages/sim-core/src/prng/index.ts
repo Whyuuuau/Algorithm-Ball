@@ -74,3 +74,4 @@ export class SeededRNGPool {
     return Math.floor(min + rng() * (max - min + 1));
   }
 }
+

@@ -12,22 +12,20 @@ export const TransportBar: React.FC<{
     isPlaying,
     setIsPlaying,
     currentFrame,
-    setCurrentFrame,
+    requestSeek,
     simState,
     previewWidth,
     setPreviewScale
   } = useProjectStore();
 
   const totalFrames = Math.round(config.meta.duration_sec * config.meta.fps);
-  const progressPercent = totalFrames > 0 ? (currentFrame / totalFrames) * 100 : 0;
 
   return (
     <div className="bg-slate-900 border-t border-slate-800 p-2.5 flex items-center justify-between gap-4 text-xs select-none">
-      {/* Controls */}
       <div className="flex items-center gap-2">
         <button
           onClick={() => setIsPlaying(!isPlaying)}
-          className={`p-2 rounded-lg font-bold flex items-center justify-center transition-all ${
+          className={`p-2 rounded-lg font-bold flex items-center justify-center transition-all cursor-pointer ${
             isPlaying ? "bg-amber-500 hover:bg-amber-400 text-slate-950" : "bg-cyan-500 hover:bg-cyan-400 text-slate-950"
           }`}
           title={isPlaying ? "Pause" : "Play Live"}
@@ -38,7 +36,7 @@ export const TransportBar: React.FC<{
         <button
           onClick={onStep}
           disabled={isPlaying}
-          className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 transition-colors"
+          className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 transition-colors cursor-pointer"
           title="Step 1 Frame"
         >
           <StepForward className="w-4 h-4" />
@@ -46,7 +44,7 @@ export const TransportBar: React.FC<{
 
         <button
           onClick={onReset}
-          className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+          className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
           title="Reset Simulation"
         >
           <RotateCcw className="w-4 h-4" />
@@ -55,8 +53,8 @@ export const TransportBar: React.FC<{
 
       {/* Scrubber Slider */}
       <div className="flex-1 flex items-center gap-3">
-        <span className="font-mono text-cyan-400 font-bold w-12 text-right">
-          {Math.floor(currentFrame / config.meta.fps)}s
+        <span className="font-mono text-cyan-400 font-bold w-14 text-right">
+          {(currentFrame / config.meta.fps).toFixed(1)}s
         </span>
         <div className="relative flex-1 flex items-center">
           <input
@@ -65,7 +63,7 @@ export const TransportBar: React.FC<{
             max={totalFrames}
             value={currentFrame}
             onChange={(e) => {
-              setCurrentFrame(parseInt(e.target.value));
+              requestSeek(parseInt(e.target.value, 10));
             }}
             className="w-full accent-cyan-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
           />
@@ -83,17 +81,16 @@ export const TransportBar: React.FC<{
         <div className="flex items-center gap-1.5">
           <span>Balls:</span>
           <span className="text-cyan-400 font-bold">
-            {simState ? simState.physicalBallCount : 0}
+            {simState ? simState.pool.count : 0}
           </span>
           <span className="text-[10px] text-slate-500">
-            ({simState ? simState.virtualBallCount.toLocaleString() : 0} virtual)
+            ({simState ? Math.round(simState.virtualTotal).toLocaleString() : 0} virtual)
           </span>
         </div>
 
-        {/* Resolution selector */}
         <select
           value={previewWidth === 1080 ? "1080p" : "540p"}
-          onChange={(e) => setPreviewScale(e.target.value as any)}
+          onChange={(e) => setPreviewScale(e.target.value as "540p" | "1080p")}
           className="bg-slate-950 border border-slate-800 rounded px-1.5 py-0.5 text-slate-300 text-[10px]"
         >
           <option value="540p">Preview: 540×960 (Optimal)</option>

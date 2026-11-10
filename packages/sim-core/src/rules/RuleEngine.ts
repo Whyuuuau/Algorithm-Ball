@@ -1,117 +1,132 @@
-import { RuleConfig, RuleActionSchema } from "@asmr/schema";
-import { z } from "zod";
+import type { RuleAction, RuleConfig } from "@asmr/schema";
 
-export type RuleAction = z.infer<typeof RuleActionSchema>;
+export type RuleTrigger = RuleConfig["trigger"];
 
 export interface RuleEvent {
-  trigger: string;
-  sourceId?: string;
-  targetId?: string;
-  value?: number;
-  timeSec: number;
-  frameIndex: number;
-}
-
-export interface CommandBufferItem {
-  ruleId: string;
-  action: RuleAction;
+  trigger: RuleTrigger;
+  lane: number;
+  laneId: string;
+  index: number;
+  /** chain depth (0 = organic, +1 for every rule-caused event) */
   depth: number;
 }
 
-export class RuleEngine {
-  private rules: Map<string, RuleConfig> = new Map();
-  private fireCount: Map<string, number> = new Map();
-  private lastFiredSec: Map<string, number> = new Map();
-  private pendingCommands: CommandBufferItem[] = [];
+export interface Command {
+  ruleId: string;
+  action: RuleAction;
+  lane: number;
+  depth: number;
+}
 
-  constructor(rules: RuleConfig[] = []) {
-    for (const rule of rules) {
-      this.rules.set(rule.id, rule);
-      this.fireCount.set(rule.id, 0);
-      this.lastFiredSec.set(rule.id, -999);
-    }
+export interface RuleContext {
+  timeSec: number;
+  frame: number;
+  tension: number;
+  virtualTotal: number;
+  bpm: number;
+}
+
+/**
+ * Declarative Trigger -> Condition -> Action[] engine. Effects are queued in a command buffer
+ * and applied at the start of the NEXT frame (deterministic ordering, no re-entrancy).
+ */
+export class RuleEngine {
+  private readonly rules: RuleConfig[];
+  private readonly enabled: boolean[];
+  private readonly fires: number[];
+  private readonly lastFire: number[];
+  private readonly countArmed: boolean[];
+  private queue: Command[] = [];
+  private lastBeat = -1;
+
+  constructor(rules: RuleConfig[]) {
+    this.rules = rules;
+    this.enabled = rules.map((r) => r.enabled);
+    this.fires = rules.map(() => 0);
+    this.lastFire = rules.map(() => -1e9);
+    this.countArmed = rules.map(() => true);
   }
 
   public reset(): void {
-    this.pendingCommands = [];
-    for (const ruleId of this.rules.keys()) {
-      this.fireCount.set(ruleId, 0);
-      this.lastFiredSec.set(ruleId, -999);
+    this.queue = [];
+    this.lastBeat = -1;
+    this.rules.forEach((r, i) => {
+      this.enabled[i] = r.enabled;
+      this.fires[i] = 0;
+      this.lastFire[i] = -1e9;
+      this.countArmed[i] = true;
+    });
+  }
+
+  private tryFire(i: number, ctx: RuleContext, lane: number, depth: number): void {
+    const r = this.rules[i];
+    if (!this.enabled[i]) return;
+    if (depth > r.guard.depth_limit) return;
+    if (r.guard.max_fires > 0 && this.fires[i] >= r.guard.max_fires) return;
+    if (ctx.timeSec - this.lastFire[i] < r.guard.cooldown_ms / 1000) return;
+    if (ctx.tension < r.min_tension) return;
+    this.fires[i]++;
+    this.lastFire[i] = ctx.timeSec;
+    for (const a of r.actions) {
+      if (a.type === "TOGGLE_RULE" && a.target_rule) {
+        const t = this.rules.findIndex((x) => x.id === a.target_rule);
+        if (t >= 0) this.enabled[t] = !this.enabled[t];
+        continue;
+      }
+      this.queue.push({ ruleId: r.id, action: a, lane, depth: depth + 1 });
     }
   }
 
-  public evaluate(events: RuleEvent[], context: { tension: number; ballCount: number; phase: string }): void {
-    for (const event of events) {
-      for (const [id, rule] of this.rules.entries()) {
-        if (!rule.enabled) continue;
-        if (rule.trigger !== event.trigger) continue;
+  /** Feed discrete events (floor break, ring break, exit). */
+  public onEvent(ev: RuleEvent, ctx: RuleContext): void {
+    for (let i = 0; i < this.rules.length; i++) {
+      const r = this.rules[i];
+      if (r.trigger !== ev.trigger) continue;
+      if (r.lane && r.lane !== ev.laneId) continue;
+      if (r.threshold > 0 && ev.index < r.threshold) continue;
+      this.tryFire(i, ctx, ev.lane, ev.depth);
+    }
+  }
 
-        // Check guards
-        const count = this.fireCount.get(id) || 0;
-        if (rule.guard.max_fires > 0 && count >= rule.guard.max_fires) continue;
-
-        const lastSec = this.lastFiredSec.get(id) || -999;
-        if (event.timeSec - lastSec < rule.guard.cooldown_ms / 1000) continue;
-
-        // Condition check (if specified)
-        if (rule.condition) {
-          if (!this.checkCondition(rule.condition, event, context)) continue;
+  /** Time based triggers, call once per frame. */
+  public onFrame(ctx: RuleContext): void {
+    const beat = ctx.bpm > 0 ? Math.floor(ctx.timeSec / (60 / ctx.bpm)) : -1;
+    for (let i = 0; i < this.rules.length; i++) {
+      const r = this.rules[i];
+      if (r.trigger === "ON_TIMER") {
+        if (r.every_sec > 0) {
+          if (ctx.timeSec >= r.at_sec && ctx.timeSec - this.lastFire[i] >= r.every_sec - 1e-9) this.tryFire(i, ctx, 0, 0);
+        } else if (this.fires[i] === 0 && ctx.timeSec >= r.at_sec) {
+          this.tryFire(i, ctx, 0, 0);
         }
-
-        // Increment fire count
-        this.fireCount.set(id, count + 1);
-        this.lastFiredSec.set(id, event.timeSec);
-
-        // Queue actions into command buffer
-        for (const action of rule.actions) {
-          this.pendingCommands.push({
-            ruleId: id,
-            action,
-            depth: 0
-          });
-        }
+      } else if (r.trigger === "ON_COUNT_REACHED") {
+        if (ctx.virtualTotal >= r.threshold) {
+          if (this.countArmed[i]) {
+            this.countArmed[i] = false;
+            this.tryFire(i, ctx, 0, 0);
+          }
+        } else this.countArmed[i] = true;
+      } else if (r.trigger === "ON_BEAT") {
+        if (beat !== this.lastBeat) this.tryFire(i, ctx, 0, 0);
       }
     }
+    this.lastBeat = beat;
   }
 
-  private checkCondition(
-    condition: string,
-    event: RuleEvent,
-    context: { tension: number; ballCount: number; phase: string }
-  ): boolean {
-    try {
-      // Safe declarative condition evaluation without eval()
-      const parts = condition.split("&&").map((p) => p.trim());
-      for (const part of parts) {
-        if (part.startsWith("tension >")) {
-          const val = parseFloat(part.replace("tension >", "").trim());
-          if (context.tension <= val) return false;
-        } else if (part.startsWith("count <")) {
-          const val = parseInt(part.replace("count <", "").trim(), 10);
-          if (context.ballCount >= val) return false;
-        } else if (part.startsWith("lane ==")) {
-          const lane = part.replace("lane ==", "").trim().replace(/['"]/g, "");
-          if (event.sourceId !== lane && event.targetId !== lane) return false;
-        }
-      }
-      return true;
-    } catch {
-      return false;
+  /** Take at most `budget` commands (global budget = min over rules is applied per rule guard). */
+  public drain(budget: number): Command[] {
+    if (this.queue.length === 0) return this.queue;
+    if (this.queue.length <= budget) {
+      const q = this.queue;
+      this.queue = [];
+      return q;
     }
+    const out = this.queue.slice(0, budget);
+    this.queue = this.queue.slice(budget);
+    return out;
   }
 
-  /**
-   * Drain command buffer respecting per-frame budget
-   */
-  public drainCommandBuffer(budgetPerFrame: number = 200): CommandBufferItem[] {
-    if (this.pendingCommands.length <= budgetPerFrame) {
-      const items = this.pendingCommands;
-      this.pendingCommands = [];
-      return items;
-    }
-
-    const items = this.pendingCommands.slice(0, budgetPerFrame);
-    this.pendingCommands = this.pendingCommands.slice(budgetPerFrame);
-    return items;
+  public pending(): number {
+    return this.queue.length;
   }
 }

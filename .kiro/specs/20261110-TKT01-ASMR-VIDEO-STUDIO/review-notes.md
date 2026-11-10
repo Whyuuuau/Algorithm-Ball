@@ -25,3 +25,4 @@
   - Pass 1: Headless simulation menghasilkan `HitLog` akurat dan merender `AudioBuffer` stereo 48 kHz lengkap.
   - Pass 2: Inisialisasi ulang `SimCore` dengan seed yang sama, merender canvas resolusi penuh 1080×1920 @ 60 FPS, dan menyalurkannya langsung ke `VideoEncoder` H.264 High Profile melalui `mediabunny`.
 - Tidak ada alokasi frame mentah RGBA uncompressed di memori browser, menghemat lebih dari 30 GB penggunaan RAM.
+

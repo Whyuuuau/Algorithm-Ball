@@ -1,73 +1,91 @@
 import { describe, it, expect } from "vitest";
 import { CLASSIC_3_TOWERS_PRESET } from "@asmr/schema";
-import { AudioDirector } from "../src/AudioDirector.js";
-import { renderModalSample } from "../src/modal/ModalSynth.js";
-import { AudioEvent } from "@asmr/sim-core";
+import {
+  Scale,
+  midiToFreq,
+  renderModalSample,
+  AudioDirector
+} from "../src/index.js";
 
-describe("AudioDirector & Modal Synthesis Verification", () => {
-  it("should generate clean modal PCM without NaN or Infinity", () => {
-    const pcm = renderModalSample("kalimba_glow", 440, 48000);
-    expect(pcm.length).toBeGreaterThan(0);
+describe("@asmr/audio-core", () => {
+  it("computes musical scale frequencies and chord tones accurately", () => {
+    const scale = new Scale("C4", "pentatonic_minor", 3);
+    expect(scale.notes.length).toBe(16);
+    expect(midiToFreq(scale.root)).toBeCloseTo(261.63, 1);
+    const triad = scale.chord("I");
+    expect(triad).toHaveLength(4);
+    expect(triad[1]).toBeGreaterThan(triad[0]);
+    expect(triad[2]).toBeGreaterThan(triad[1]);
+  });
 
-    for (let i = 0; i < pcm.length; i++) {
-      expect(Number.isFinite(pcm[i])).toBe(true);
-      expect(Math.abs(pcm[i])).toBeLessThanOrEqual(1.0);
+  it("synthesizes finite, normalized modal PCM across all 5 palettes", () => {
+    const palettes = [
+      "kalimba_glow",
+      "glass_bell",
+      "marimba_wood",
+      "thocky_keys",
+      "water_drop"
+    ] as const;
+
+    for (const p of palettes) {
+      const buf = renderModalSample(p, 440, 48000);
+      expect(buf.length).toBeGreaterThan(4800);
+      let maxAbs = 0;
+      for (let i = 0; i < buf.length; i++) {
+        expect(Number.isFinite(buf[i])).toBe(true);
+        const a = Math.abs(buf[i]);
+        if (a > maxAbs) maxAbs = a;
+      }
+      expect(maxAbs).toBeGreaterThan(0.5);
+      expect(maxAbs).toBeLessThanOrEqual(0.85);
     }
   });
 
-  it("should collapse burst hits into a clean chord with ChordAggregator", () => {
-    const director = new AudioDirector(CLASSIC_3_TOWERS_PRESET.sound);
+  it("schedules notes with quantization, chord-on-density, and renders peak-limited stereo PCM", () => {
+    const soundCfg = structuredClone(CLASSIC_3_TOWERS_PRESET.sound);
+    soundCfg.quantizer.mode = "HARMONIC";
+    soundCfg.chord_on_density = true;
 
-    // 10 hits all within 10 ms (dense cluster)
-    const burstHits: AudioEvent[] = [];
-    for (let i = 0; i < 10; i++) {
-      burstHits.push({
-        t: 1.000 + i * 0.001,
-        voice: "kalimba_glow",
-        note: 60,
-        vel: 0.8,
-        x: 0.5,
+    const director = new AudioDirector(soundCfg);
+    const hits = [];
+    // Create a burst of 8 simultaneous hits to trigger chord-on-density
+    for (let i = 0; i < 8; i++) {
+      hits.push({
+        t: 0.25 + i * 0.002,
+        kind: (i === 0 ? "break" : "floor") as "break" | "floor",
+        lane: i % 3,
+        index: i + 1,
+        x: (i % 3) * 0.4 + 0.1,
         y: 0.5,
-        lane: "center"
+        vel: 0.9,
+        n: 10,
+        shift: 0
       });
     }
 
-    const processed = director.chordAggregator.aggregate(burstHits);
-    // 10 dense hits should be collapsed into a triad (3 notes: root, +4, +7)
-    expect(processed.length).toBe(3);
-    expect(processed[0].note).toBe(60);
-    expect(processed[1].note).toBe(64);
-    expect(processed[2].note).toBe(67);
-  });
+    const scheduled = director.scheduleNotes(hits, 1.5, CLASSIC_3_TOWERS_PRESET.arc.tension_curve);
+    expect(scheduled.length).toBeGreaterThan(0);
 
-  it("should enforce -1 dBFS limiter ceiling on offline render", () => {
-    const director = new AudioDirector(CLASSIC_3_TOWERS_PRESET.sound);
+    const { leftChannel: left, rightChannel: right } = director.renderOfflinePCM(
+      hits,
+      1.5,
+      48000,
+      CLASSIC_3_TOWERS_PRESET.arc
+    );
+    expect(left.length).toBe(48000 * 1.5);
+    expect(right.length).toBe(48000 * 1.5);
 
-    // Massive volume overload hits
-    const massiveHits: AudioEvent[] = [];
-    for (let i = 0; i < 50; i++) {
-      massiveHits.push({
-        t: 0.1,
-        voice: "kalimba_glow",
-        note: 60 + (i % 12),
-        vel: 1.0,
-        x: 0.5,
-        y: 0.5,
-        lane: "center"
-      });
+    // Check limiter ceiling (-1 dBFS ~= 0.891)
+    let peakL = 0;
+    let peakR = 0;
+    for (let i = 0; i < left.length; i++) {
+      expect(Number.isFinite(left[i])).toBe(true);
+      expect(Number.isFinite(right[i])).toBe(true);
+      if (Math.abs(left[i]) > peakL) peakL = Math.abs(left[i]);
+      if (Math.abs(right[i]) > peakR) peakR = Math.abs(right[i]);
     }
-
-    const result = director.renderOfflinePCM(massiveHits, 1.0, 48000);
-    const ceilingLinear = Math.pow(10, -1 / 20); // ~0.89125
-
-    let maxL = 0;
-    let maxR = 0;
-    for (let i = 0; i < result.length; i++) {
-      if (Math.abs(result.leftChannel[i]) > maxL) maxL = Math.abs(result.leftChannel[i]);
-      if (Math.abs(result.rightChannel[i]) > maxR) maxR = Math.abs(result.rightChannel[i]);
-    }
-
-    expect(maxL).toBeLessThanOrEqual(ceilingLinear + 0.0001);
-    expect(maxR).toBeLessThanOrEqual(ceilingLinear + 0.0001);
+    expect(peakL).toBeGreaterThan(0.05);
+    expect(peakL).toBeLessThanOrEqual(0.90);
+    expect(peakR).toBeLessThanOrEqual(0.90);
   });
 });

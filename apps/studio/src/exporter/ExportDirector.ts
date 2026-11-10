@@ -1,4 +1,5 @@
-import { ProjectConfig } from "@asmr/schema";
+import type { ProjectConfig } from "@asmr/schema";
+import { evaluateTensionCurve } from "@asmr/schema";
 import { SimCore } from "@asmr/sim-core";
 import { AudioDirector } from "@asmr/audio-core";
 import { StageRenderer } from "@asmr/render-core";
@@ -10,6 +11,8 @@ import {
   AudioBufferSource
 } from "mediabunny";
 
+export { evaluateTensionCurve };
+
 export interface ExportProgress {
   phase: "PREPARING" | "SIMULATING_AUDIO" | "RENDERING_AUDIO" | "RENDERING_VIDEO" | "FINALIZING";
   frame: number;
@@ -17,48 +20,22 @@ export interface ExportProgress {
   progressPercent: number;
 }
 
-/**
- * Tension curve evaluator with piecewise linear interpolation
- */
-export function evaluateTensionCurve(curve: [number, number][], progress: number): number {
-  if (!curve || curve.length === 0) return 0.5;
-  if (curve.length === 1) return curve[0][1];
-
-  const p = Math.max(0, Math.min(1, progress));
-
-  if (p <= curve[0][0]) return curve[0][1];
-  if (p >= curve[curve.length - 1][0]) return curve[curve.length - 1][1];
-
-  for (let i = 0; i < curve.length - 1; i++) {
-    const [t0, v0] = curve[i];
-    const [t1, v1] = curve[i + 1];
-
-    if (p >= t0 && p <= t1) {
-      const alpha = (p - t0) / (t1 - t0);
-      return v0 + alpha * (v1 - v0);
-    }
-  }
-
-  return 0.5;
-}
-
 export class ExportDirector {
   public static async checkWebCodecsSupport(): Promise<{ supported: boolean; reason?: string }> {
     if (typeof window === "undefined" || typeof VideoEncoder === "undefined") {
-      return { supported: false, reason: "WebCodecs VideoEncoder is not available in this browser environment." };
+      return { supported: false, reason: "WebCodecs VideoEncoder tidak tersedia di browser ini." };
     }
-
     try {
       const support = await VideoEncoder.isConfigSupported({
-        codec: "avc1.640028", // H.264 High Profile Level 4.0
+        codec: "avc1.640028",
         width: 1080,
         height: 1920,
         bitrate: 14_000_000,
         framerate: 60
       });
       return { supported: !!support.supported };
-    } catch (e: any) {
-      return { supported: false, reason: e.message };
+    } catch (e: unknown) {
+      return { supported: false, reason: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -70,62 +47,41 @@ export class ExportDirector {
     const totalFrames = Math.round(config.meta.duration_sec * config.meta.fps);
     const fps = config.meta.fps;
 
-    onProgress({
-      phase: "PREPARING",
-      frame: 0,
-      totalFrames,
-      progressPercent: 0
-    });
+    onProgress({ phase: "PREPARING", frame: 0, totalFrames, progressPercent: 0 });
 
-    // ==========================================
-    // PASS 1: Headless Audio Pass
-    // ==========================================
-    onProgress({
-      phase: "SIMULATING_AUDIO",
-      frame: 0,
-      totalFrames,
-      progressPercent: 5
-    });
-
-    const headlessSim = new SimCore(config);
-    await headlessSim.init();
+    // PASS 1: Headless simulation -> HitLog -> Offline stereo AudioBuffer
+    onProgress({ phase: "SIMULATING_AUDIO", frame: 0, totalFrames, progressPercent: 4 });
+    const headlessSim = new SimCore(config, { render: false });
+    headlessSim.initSync();
 
     for (let f = 0; f < totalFrames; f++) {
-      if (signal?.aborted) throw new DOMException("Export cancelled", "AbortError");
+      if (signal?.aborted) throw new DOMException("Export dibatalkan", "AbortError");
       headlessSim.step();
-      if (f % 60 === 0) {
+      if (f % 120 === 0) {
         onProgress({
           phase: "SIMULATING_AUDIO",
           frame: f,
           totalFrames,
-          progressPercent: 5 + Math.round((f / totalFrames) * 20)
+          progressPercent: 4 + Math.round((f / totalFrames) * 18)
         });
         await new Promise((r) => setTimeout(r, 0));
       }
     }
 
-    onProgress({
-      phase: "RENDERING_AUDIO",
-      frame: totalFrames,
-      totalFrames,
-      progressPercent: 25
-    });
+    onProgress({ phase: "RENDERING_AUDIO", frame: totalFrames, totalFrames, progressPercent: 24 });
+    await new Promise((r) => setTimeout(r, 0));
 
     const audioDirector = new AudioDirector(config.sound);
     const hitLog = headlessSim.getHitLog();
-    const audioBuffer = await audioDirector.renderAudioBuffer(hitLog, config.meta.duration_sec);
+    const audioBuffer = await audioDirector.renderAudioBuffer(
+      hitLog,
+      config.meta.duration_sec,
+      config.arc
+    );
 
-    // ==========================================
-    // PASS 2: Deterministic Video Pass
-    // ==========================================
-    onProgress({
-      phase: "RENDERING_VIDEO",
-      frame: 0,
-      totalFrames,
-      progressPercent: 30
-    });
+    // PASS 2: Re-run identical simulation at 1080x1920 and stream frames to WebCodecs
+    onProgress({ phase: "RENDERING_VIDEO", frame: 0, totalFrames, progressPercent: 30 });
 
-    // Create export canvas strictly at 1080x1920
     const exportCanvas = document.createElement("canvas");
     exportCanvas.width = 1080;
     exportCanvas.height = 1920;
@@ -135,37 +91,37 @@ export class ExportDirector {
       height: 1920
     });
 
-    // Initialize fresh SimCore with identical seed
-    const videoSim = new SimCore(config);
-    await videoSim.init();
+    const videoSim = new SimCore(config, { render: true });
+    videoSim.initSync();
 
-    // Setup Mediabunny Output & Sources
     const target = new BufferTarget();
     const output = new Output({
       format: new Mp4OutputFormat(),
       target
     });
 
+    const videoBitrate = Math.round((config.export?.video_mbps ?? 14) * 1_000_000);
+    const audioBitrate = Math.round((config.export?.audio_kbps ?? 256) * 1000);
+
     const videoSource = new CanvasSource(exportCanvas, {
       codec: "avc",
-      bitrate: 14_000_000
+      bitrate: videoBitrate
     });
     output.addVideoTrack(videoSource, { frameRate: fps });
 
     const audioSource = new AudioBufferSource({
       codec: "aac",
-      bitrate: 256_000
+      bitrate: audioBitrate
     });
     output.addAudioTrack(audioSource);
 
     await output.start();
     await audioSource.add(audioBuffer);
 
-    // Render frame-by-frame and feed directly into WebCodecs VideoEncoder
     for (let f = 0; f < totalFrames; f++) {
       if (signal?.aborted) {
         await output.cancel();
-        throw new DOMException("Export cancelled", "AbortError");
+        throw new DOMException("Export dibatalkan", "AbortError");
       }
 
       const state = videoSim.step();
@@ -174,42 +130,28 @@ export class ExportDirector {
 
       stageRenderer.draw(state, tension);
 
-      const timestampSec = f / fps;
-      const durationSec = 1 / fps;
-      await videoSource.add(timestampSec, durationSec);
+      await videoSource.add(f / fps, 1 / fps);
 
       if (f % 15 === 0) {
         onProgress({
           phase: "RENDERING_VIDEO",
           frame: f,
           totalFrames,
-          progressPercent: 30 + Math.round((f / totalFrames) * 65)
+          progressPercent: 30 + Math.round((f / totalFrames) * 66)
         });
         await new Promise((r) => setTimeout(r, 0));
       }
     }
 
-    onProgress({
-      phase: "FINALIZING",
-      frame: totalFrames,
-      totalFrames,
-      progressPercent: 98
-    });
-
+    onProgress({ phase: "FINALIZING", frame: totalFrames, totalFrames, progressPercent: 98 });
     await output.finalize();
 
     const mp4Bytes = target.buffer;
     if (!mp4Bytes) {
-      throw new Error("Mediabunny output buffer is empty");
+      throw new Error("Output buffer Mediabunny kosong");
     }
 
-    onProgress({
-      phase: "FINALIZING",
-      frame: totalFrames,
-      totalFrames,
-      progressPercent: 100
-    });
-
+    onProgress({ phase: "FINALIZING", frame: totalFrames, totalFrames, progressPercent: 100 });
     return new Blob([mp4Bytes], { type: "video/mp4" });
   }
 }

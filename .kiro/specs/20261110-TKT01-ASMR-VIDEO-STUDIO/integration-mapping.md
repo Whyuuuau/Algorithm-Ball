@@ -68,3 +68,4 @@ flowchart LR
 - **Rapier2D (`@dimforge/rapier2d`):** Diintegrasikan melalui WebAssembly binary loader deterministik.
 - **PixiJS v8 (`pixi.js`):** Menggunakan pipeline WebGL2 teroptimasi untuk batch rendering jutaan partikel via sprite pooling.
 - **Mediabunny (`mediabunny`):** Menggantikan pustaka lama (`mp4-muxer`) untuk standarisasi muxing AVC/AAC ke ISO Base Media File Format (MP4).
+

@@ -1,248 +1,232 @@
-import { ProjectConfig } from "@asmr/schema";
-import { RAPIER, initRapier } from "./physics/RapierContext.js";
+import type { ProjectConfig } from "@asmr/schema";
+import { evaluateTensionCurve } from "@asmr/schema";
 import { SeededRNGPool, hashFnv1a } from "./prng/index.js";
 import { PopulationGovernor } from "./governor/PopulationGovernor.js";
-import { RuleEngine } from "./rules/RuleEngine.js";
-import { TowerBreakerScene, FloorData } from "./scenes/TowerBreaker.js";
-import { MazeEscapeScene } from "./scenes/MazeEscape.js";
+import { BallPool } from "./engine/BallPool.js";
+import { ArenaScene } from "./engine/ArenaScene.js";
+import { MazeScene } from "./engine/MazeScene.js";
+import { TowerScene, type Scene, type SceneContext } from "./engine/TowerScene.js";
+import type { HitEvent, SimSnapshot } from "./engine/types.js";
+import { RuleEngine, type RuleTrigger } from "./rules/RuleEngine.js";
 
-export interface AudioEvent {
-  t: number;
-  voice: string;
-  note: number;
-  vel: number;
-  x: number;
-  y: number;
-  lane: string;
+export interface SimOptions {
+  /** Arena scenes only: skip painting the pixel image (Seed Scout / headless audio pass). */
+  render?: boolean;
 }
 
-export interface SimStateSnapshot {
-  frame: number;
-  timeSec: number;
-  totalFrames: number;
-  virtualBallCount: number;
-  physicalBallCount: number;
-  ballBuffer: Float32Array; // Interleaved: [x, y, vx, vy, radius, r, g, b, alpha, laneIdx] (10 floats per ball)
-  floors: FloorData[];
-  escapedBallsCount: number;
-  ringRotations: number[];
-  winnerLaneId: string | null;
-  hash: number;
-}
-
+/**
+ * Deterministic, headless simulation. No DOM, no Web Audio, no Math.random.
+ * `step()` returns the same (reused) snapshot object each call – copy what you need.
+ */
 export class SimCore {
   public readonly config: ProjectConfig;
   public readonly dt: number;
-  public frame: number = 0;
+  public readonly totalFrames: number;
+  public frame = 0;
 
-  private world!: RAPIER.World;
-  private eventQueue!: RAPIER.EventQueue;
   private rng!: SeededRNGPool;
-  private governor!: PopulationGovernor;
-  private ruleEngine!: RuleEngine;
+  private pool!: BallPool;
+  private gov!: PopulationGovernor;
+  private rules!: RuleEngine;
+  private scene!: Scene;
+  private hits: HitEvent[] = [];
+  private pitchShift = 0;
+  private hash = 0;
+  private pendingRule: { trigger: RuleTrigger; lane: number; index: number; depth: number }[] = [];
+  private curDepth = 0;
+  private snap!: SimSnapshot;
+  private readonly renderPixels: boolean;
 
-  private towerScene: TowerBreakerScene | null = null;
-  private mazeScene: MazeEscapeScene | null = null;
-
-  private audioLog: AudioEvent[] = [];
-  private currentHash: number = 0;
-
-  // Preallocated buffer for zero-garbage state transfer (cap * 10 floats)
-  private ballBuffer: Float32Array;
-
-  constructor(config: ProjectConfig) {
+  constructor(config: ProjectConfig, opts: SimOptions = {}) {
     this.config = config;
     this.dt = 1 / config.meta.fps;
-    const cap = config.physics.physical_cap || 3000;
-    this.ballBuffer = new Float32Array(cap * 10);
+    this.totalFrames = Math.round(config.meta.duration_sec * config.meta.fps);
+    this.renderPixels = opts.render !== false;
   }
 
+  /** Kept async for API compatibility; the engine itself needs no WASM. */
   public async init(): Promise<void> {
-    await initRapier();
-
-    const grav = this.config.physics.gravity;
-    this.world = new RAPIER.World({ x: grav[0], y: grav[1] });
-    this.eventQueue = new RAPIER.EventQueue(true);
-
-    this.rng = new SeededRNGPool(this.config.seed);
-    this.governor = new PopulationGovernor(this.config.physics.physical_cap);
-    this.ruleEngine = new RuleEngine(this.config.rules);
-
-    if (this.config.scene.type === "TOWER_BREAKER") {
-      this.towerScene = new TowerBreakerScene(
-        this.config,
-        this.world,
-        this.governor,
-        this.rng
-      );
-      this.towerScene.initArena();
-    } else if (this.config.scene.type === "MAZE_ESCAPE") {
-      this.mazeScene = new MazeEscapeScene(
-        this.config,
-        this.world,
-        this.governor,
-        this.rng
-      );
-      this.mazeScene.initArena();
-    }
-
-    this.frame = 0;
-    this.audioLog = [];
-    this.currentHash = 0;
+    this.initSync();
   }
 
-  public step(): SimStateSnapshot {
-    const timeSec = this.frame * this.dt;
-    const substeps = this.config.physics.substeps || 4;
-    const subDt = this.dt / substeps;
-    this.world.timestep = subDt;
+  public initSync(): void {
+    const cfg = this.config;
+    this.rng = new SeededRNGPool(cfg.seed);
+    this.pool = new BallPool(cfg.physics.physical_cap);
+    const lanes = cfg.scene.type === "TOWER_BREAKER" ? cfg.scene.lanes.length : 1;
+    this.gov = new PopulationGovernor(cfg.physics.physical_cap, lanes);
+    this.rules = new RuleEngine(cfg.rules);
+    this.hits = [];
+    this.pitchShift = 0;
+    this.pendingRule = [];
+    this.curDepth = 0;
+    this.frame = 0;
+    this.hash = 0;
 
-    // 1. Drain Rule Engine commands from previous frame
-    const commands = this.ruleEngine.drainCommandBuffer(200);
-    for (const cmd of commands) {
-      if (cmd.action.type === "SPAWN" && this.towerScene) {
-        const laneId = cmd.action.at || "left";
-        this.towerScene.spawnBallsForLane(laneId, cmd.action.count || 10, 27, 10);
+    const ctx: SceneContext = {
+      config: cfg,
+      dt: this.dt,
+      rng: this.rng,
+      pool: this.pool,
+      gov: this.gov,
+      emit: (ev) => {
+        this.hits.push({ ...ev, shift: this.pitchShift });
+      },
+      ruleEvent: (trigger, lane, index) => {
+        this.pendingRule.push({ trigger, lane, index, depth: this.curDepth });
+      }
+    };
+    switch (cfg.scene.type) {
+      case "TOWER_BREAKER":
+        this.scene = new TowerScene(ctx);
+        break;
+      case "MAZE_ESCAPE":
+        this.scene = new MazeScene(ctx);
+        break;
+      default: {
+        const a = new ArenaScene(ctx);
+        a.renderEnabled = this.renderPixels;
+        this.scene = a;
       }
     }
+    this.scene.init();
 
-    // 2. Update scene kinematics (rings, anti-stalemate)
-    if (this.towerScene) {
-      this.towerScene.update(this.dt);
-    } else if (this.mazeScene) {
-      this.mazeScene.update(this.dt);
-    }
+    this.snap = {
+      frame: 0,
+      timeSec: 0,
+      totalFrames: this.totalFrames,
+      sceneType: cfg.scene.type,
+      pool: this.pool,
+      virtualTotal: 0,
+      laneVirtual: new Array(lanes).fill(0),
+      floors: [],
+      pegs: [],
+      rings: [],
+      escaped: 0,
+      escapeGoal: 0,
+      winnerLane: -1,
+      winnerFrame: -1,
+      hitStop: false,
+      shake: 0,
+      flash: 0,
+      image: null,
+      imageW: 0,
+      imageH: 0,
+      arenaHud: [],
+      progress: 0,
+      hash: 0
+    };
+  }
 
-    // 3. Step physics substeps
-    for (let s = 0; s < substeps; s++) {
-      this.world.step(this.eventQueue);
-    }
+  public laneIds(): string[] {
+    const n = this.scene.laneCount();
+    const out: string[] = [];
+    for (let i = 0; i < n; i++) out.push(this.scene.laneId(i));
+    return out;
+  }
 
-    // 4. Collect and deterministically sort collision pairs
-    const rawHits: { h1: number; h2: number; started: boolean }[] = [];
-    this.eventQueue.drainCollisionEvents((h1, h2, started) => {
-      if (started) {
-        const a = Math.min(h1, h2);
-        const b = Math.max(h1, h2);
-        rawHits.push({ h1: a, h2: b, started });
-      }
-    });
-
-    // Deterministic sorting
-    rawHits.sort((a, b) => (a.h1 !== b.h1 ? a.h1 - b.h1 : a.h2 - b.h2));
-
-    // 5. Process hits & generate audio events
-    const maxSpeed = this.config.physics.max_speed;
-    const ppm = this.config.physics.pixels_per_meter;
-
-    for (const hit of rawHits) {
-      if (this.towerScene) {
-        // Find which is collider and which is ball body
-        const res = this.towerScene.handleFloorHit(hit.h1, hit.h2) || this.towerScene.handleFloorHit(hit.h2, hit.h1);
-        if (res) {
-          const ballBody = this.towerScene.getBallBody(hit.h1) || this.towerScene.getBallBody(hit.h2);
-          const pos = ballBody ? ballBody.translation() : { x: 27, y: res.floor.yPos };
-          const linvel = ballBody ? ballBody.linvel() : { x: 0, y: 10 };
-          const speed = Math.hypot(linvel.x, linvel.y);
-          const velNorm = Math.min(1.0, speed / 30);
-
-          // Note calculation: base scale note + floor escalation
-          const floorEscalation = (res.floor.floorIndex - 1) * (this.config.sound.escalation.pitch_semitones_per_floor || 0.5);
-          const midiBase = 60; // C4
-          const note = Math.round(midiBase + floorEscalation + (res.broken ? 7 : 0));
-
-          this.audioLog.push({
-            t: timeSec,
-            voice: this.config.sound.palette,
-            note,
-            vel: Math.max(0.2, velNorm),
-            x: Math.max(0, Math.min(1, pos.x / 54)),
-            y: Math.max(0, Math.min(1, pos.y / 96)),
-            lane: res.floor.laneId
-          });
-        }
-      } else if (this.mazeScene) {
-        const escaped = this.mazeScene.handleExitSensor(hit.h1, hit.h2) || this.mazeScene.handleExitSensor(hit.h2, hit.h1);
-        if (escaped) {
-          this.audioLog.push({
-            t: timeSec,
-            voice: this.config.sound.palette,
-            note: 72, // C5
-            vel: 0.9,
-            x: 0.5,
-            y: 0.9,
-            lane: "maze"
-          });
-        }
-      }
-    }
-
-    // 6. Clamp velocities & pack ball buffer for rendering
-    let ballIdx = 0;
-    let ballEntries = this.towerScene
-      ? this.towerScene.getAllActiveBallEntries()
-      : this.mazeScene
-      ? this.mazeScene.getAllActiveBallEntries()
-      : [].values();
-
-    let stateCoordSum = 0;
-
-    for (const { ball, body } of ballEntries) {
-      if (!ball.active) continue;
-
-      const trans = body.translation();
-      const linvel = body.linvel();
-      const spd = Math.hypot(linvel.x, linvel.y);
-
-      // Clamp speed
-      if (spd > maxSpeed) {
-        const factor = maxSpeed / spd;
-        body.setLinvel({ x: linvel.x * factor, y: linvel.y * factor }, true);
-      }
-
-      // Pack into preallocated buffer
-      const offset = ballIdx * 10;
-      this.ballBuffer[offset + 0] = trans.x * ppm; // x in canvas pixels
-      this.ballBuffer[offset + 1] = trans.y * ppm; // y in canvas pixels
-      this.ballBuffer[offset + 2] = linvel.x * ppm;
-      this.ballBuffer[offset + 3] = linvel.y * ppm;
-      this.ballBuffer[offset + 4] = PopulationGovernor.calculateVisualRadius(ball.baseRadius, ball.weight);
-      this.ballBuffer[offset + 5] = ball.colorR / 255;
-      this.ballBuffer[offset + 6] = ball.colorG / 255;
-      this.ballBuffer[offset + 7] = ball.colorB / 255;
-      this.ballBuffer[offset + 8] = 1.0; // alpha
-      this.ballBuffer[offset + 9] = ball.laneIdx;
-
-      stateCoordSum += trans.x * 100 + trans.y * 10;
-      ballIdx++;
-    }
-
-    // 7. Calculate FNV-1a hash every 60 frames
-    if (this.frame % 60 === 0) {
-      this.currentHash = hashFnv1a(`f:${this.frame}:v:${this.governor.getTotalVirtual()}:s:${Math.round(stateCoordSum)}`);
-    }
-
-    const totalFrames = Math.round(this.config.meta.duration_sec * this.config.meta.fps);
-
-    const snapshot: SimStateSnapshot = {
-      frame: this.frame,
+  public step(): SimSnapshot {
+    const cfg = this.config;
+    const frame = this.frame;
+    const timeSec = frame * this.dt;
+    const progress = this.totalFrames > 0 ? frame / this.totalFrames : 0;
+    const tension = evaluateTensionCurve(cfg.arc.tension_curve, progress);
+    const ruleCtx = {
       timeSec,
-      totalFrames,
-      virtualBallCount: this.governor.getTotalVirtual(),
-      physicalBallCount: this.governor.getActivePhysicalCount(),
-      ballBuffer: this.ballBuffer.subarray(0, ballIdx * 10),
-      floors: this.towerScene ? [...this.towerScene.state.floors] : [],
-      escapedBallsCount: this.mazeScene ? this.mazeScene.state.escapedBallsCount : 0,
-      ringRotations: this.mazeScene ? [...this.mazeScene.state.ringRotations] : [],
-      winnerLaneId: this.towerScene ? this.towerScene.state.winnerLaneId : null,
-      hash: this.currentHash
+      frame,
+      tension,
+      virtualTotal: this.gov.totalVirtual(),
+      bpm: cfg.sound.quantizer.bpm
     };
 
+    // 1. rules queued last frame
+    const cmds = this.rules.drain(Math.max(1, ...cfg.rules.map((r) => r.guard.budget_per_frame)));
+    for (const c of cmds) {
+      this.curDepth = c.depth;
+      if (c.action.type === "SHIFT_PITCH") this.pitchShift += c.action.value ?? 1;
+      else if (c.action.type === "PLAY_SFX") {
+        this.hits.push({ t: timeSec, kind: "sfx", lane: c.lane, index: 1, x: 0.5, y: 0.5, vel: 0.9, n: 1, shift: this.pitchShift + (c.action.value ?? 0) });
+      } else this.scene.apply(c.action, c.lane);
+    }
+    this.curDepth = 0;
+
+    // 2. physics / algorithm
+    this.scene.step(frame, timeSec);
+
+    // 3. events -> rules (applied next frame)
+    const laneIds = this.laneIds();
+    for (const e of this.pendingRule) {
+      this.rules.onEvent(
+        { trigger: e.trigger, lane: e.lane, laneId: laneIds[e.lane] ?? "", index: e.index, depth: e.depth },
+        ruleCtx
+      );
+    }
+    this.pendingRule.length = 0;
+    this.rules.onFrame(ruleCtx);
+
+    // 4. snapshot
+    const s = this.snap;
+    s.frame = frame;
+    s.timeSec = timeSec;
+    s.virtualTotal = this.gov.totalVirtual();
+    for (let i = 0; i < s.laneVirtual.length; i++) s.laneVirtual[i] = this.gov.virtual[i] ?? 0;
+    this.scene.fill(s);
+
+    if (frame % 60 === 0) {
+      this.hash = this.computeHash(frame);
+    }
+    s.hash = this.hash;
     this.frame++;
-    return snapshot;
+    return s;
   }
 
-  public getHitLog(): AudioEvent[] {
-    return this.audioLog;
+  private computeHash(frame: number): number {
+    // FNV-1a over quantised positions
+    let h = 0x811c9dc5;
+    const mix = (v: number): void => {
+      h ^= v & 0xff;
+      h = Math.imul(h, 0x01000193);
+      h ^= (v >>> 8) & 0xff;
+      h = Math.imul(h, 0x01000193);
+      h ^= (v >>> 16) & 0xff;
+      h = Math.imul(h, 0x01000193);
+      h ^= (v >>> 24) & 0xff;
+      h = Math.imul(h, 0x01000193);
+    };
+    mix(frame);
+    mix(this.pool.count);
+    for (let i = 0; i < this.pool.count; i++) {
+      mix((this.pool.x[i] * 64) | 0);
+      mix((this.pool.y[i] * 64) | 0);
+    }
+    if (this.snap.image) {
+      const im = this.snap.image;
+      for (let i = 0; i < im.length; i += 7) mix(im[i]);
+    }
+    return h >>> 0;
+  }
+
+  public getHitLog(): HitEvent[] {
+    return this.hits;
+  }
+
+  /** Winner lane index (tower) or -1. */
+  public winner(): number {
+    return this.snap.winnerLane;
+  }
+
+  /** Per-lane normalised progress (tower only) – used by Seed Scout. */
+  public laneProgress(l: number): number {
+    return this.scene instanceof TowerScene ? this.scene.laneProgress(l) : this.snap.progress;
+  }
+
+  /** Re-simulate silently up to `frame` (scrubbing). */
+  public seek(frame: number): SimSnapshot {
+    this.initSync();
+    let snap = this.snap;
+    for (let i = 0; i <= frame; i++) snap = this.step();
+    return snap;
   }
 }
+
+export { hashFnv1a };
