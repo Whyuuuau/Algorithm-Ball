@@ -1,0 +1,12 @@
+{
+  "name": "@asmr/render-core",
+  "version": "2.0.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "@asmr/schema": "*",
+    "@asmr/sim-core": "*",
+    "pixi.js": "^8.22.0"
+  }
+}
