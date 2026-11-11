@@ -48,6 +48,16 @@ export class StageRenderer {
   private lastFlashTimeSec = -10;
   private activeHue = 190;
 
+  private static readonly STARS: ReadonlyArray<{ x: number; y: number; r: number; phase: number }> = Array.from(
+    { length: 90 },
+    (_, i) => ({
+      x: ((i * 137.508) % 1080) / 1080,
+      y: ((i * 269.897) % 1920) / 1920,
+      r: 0.8 + ((i * 37) % 20) / 10,
+      phase: (i * 0.43) % (Math.PI * 2)
+    })
+  );
+
   constructor(canvas: HTMLCanvasElement, config: ProjectConfig, options?: StageRendererOptions) {
     this.canvas = canvas;
     this.config = config;
@@ -83,10 +93,85 @@ export class StageRenderer {
   }
 
   public clearTrail(): void {
-    this.trailCtx.fillStyle = this.config.look.background || "#060609";
-    this.trailCtx.fillRect(0, 0, this.width, this.height);
+    this.renderBackground(this.trailCtx, 1.0, 0);
     this.firstFrameCanvas = null;
     this.lastFlashTimeSec = -10;
+  }
+
+  private renderBackground(ctx: CanvasRenderingContext2D, alpha: number, timeSec: number): void {
+    const cfg = this.config;
+    const style = cfg.look.background_style || "solid";
+    const bg = cfg.look.background || "#060609";
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    if (style === "radial_vignette") {
+      const cx = this.width / 2;
+      const cy = this.height * 0.45;
+      const grad = ctx.createRadialGradient(cx, cy, 20, cx, cy, Math.max(this.width, this.height) * 0.75);
+      const [r, g, b] = hexToRgb(bg);
+      grad.addColorStop(0, `rgb(${Math.min(255, r + 45)}, ${Math.min(255, g + 45)}, ${Math.min(255, b + 60)})`);
+      grad.addColorStop(1, bg);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, this.width, this.height);
+    } else if (style === "deep_space_stars") {
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, this.width, this.height);
+      const cx = this.width * 0.5;
+      const cy = this.height * 0.35;
+      const grad = ctx.createRadialGradient(cx, cy, 50, cx, cy, this.width * 0.7);
+      grad.addColorStop(0, "rgba(75, 0, 130, 0.22)");
+      grad.addColorStop(0.5, "rgba(0, 80, 160, 0.12)");
+      grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, this.width, this.height);
+
+      for (const st of StageRenderer.STARS) {
+        const sx = st.x * this.width;
+        const sy = st.y * this.height;
+        const twinkle = 0.5 + 0.5 * Math.sin(timeSec * 3 + st.phase);
+        ctx.fillStyle = `rgba(255, 255, 255, ${0.35 + 0.65 * twinkle})`;
+        ctx.beginPath();
+        ctx.arc(sx, sy, st.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (style === "cyber_grid") {
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, this.width, this.height);
+      const horizonY = this.height * 0.52;
+      ctx.save();
+      ctx.strokeStyle = "rgba(0, 229, 255, 0.18)";
+      ctx.lineWidth = 1;
+      const cx = this.width / 2;
+      for (let angle = -60; angle <= 60; angle += 10) {
+        const rad = (angle * Math.PI) / 180;
+        ctx.beginPath();
+        ctx.moveTo(cx, horizonY);
+        ctx.lineTo(cx + Math.tan(rad) * (this.height - horizonY) * 1.5, this.height);
+        ctx.stroke();
+      }
+      for (let y = horizonY + 20; y < this.height; y += Math.pow((y - horizonY) * 0.18, 1.4) + 12) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(this.width, y);
+        ctx.stroke();
+      }
+      ctx.restore();
+    } else if (style === "aurora_gradient") {
+      const grad = ctx.createLinearGradient(0, 0, 0, this.height);
+      const [r, g, b] = hexToRgb(bg);
+      grad.addColorStop(0, `rgb(${Math.min(255, r + 25)}, ${Math.min(255, g + 8)}, ${Math.min(255, b + 40)})`);
+      grad.addColorStop(0.5, bg);
+      grad.addColorStop(1, `rgb(${Math.max(0, r - 5)}, ${Math.min(255, g + 25)}, ${Math.min(255, b + 35)})`);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, this.width, this.height);
+    } else {
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, this.width, this.height);
+    }
+
+    ctx.restore();
   }
 
   public resize(width: number, height: number): void {
@@ -102,9 +187,9 @@ export class StageRenderer {
     this.clearTrail();
   }
 
-  /** Pre-rendered radial glow stamp for fast O(1) ball blitting without shadowBlur overhead. */
-  private getBallSprite(r: number, g: number, b: number): HTMLCanvasElement {
-    const key = `${r},${g},${b}`;
+  /** Pre-rendered cached stamp for fast O(1) ball blitting without shadowBlur overhead. */
+  private getBallSprite(r: number, g: number, b: number, style: string = "glow"): HTMLCanvasElement {
+    const key = `${style},${r},${g},${b}`;
     let sp = this.spriteCache.get(key);
     if (sp) return sp;
 
@@ -114,15 +199,59 @@ export class StageRenderer {
     sp.height = size;
     const c = sp.getContext("2d")!;
     const cx = size / 2;
-    const grad = c.createRadialGradient(cx, cx, 2, cx, cx, cx);
-    grad.addColorStop(0, `rgba(255, 255, 255, 1)`);
-    grad.addColorStop(0.28, ` rgba(${r}, ${g}, ${b}, 0.95)`);
-    grad.addColorStop(0.6, `rgba(${r}, ${g}, ${b}, 0.35)`);
-    grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
-    c.fillStyle = grad;
-    c.beginPath();
-    c.arc(cx, cx, cx, 0, Math.PI * 2);
-    c.fill();
+
+    if (style === "neon_ring") {
+      c.beginPath();
+      c.arc(cx, cx, 16, 0, Math.PI * 2);
+      c.lineWidth = 5;
+      c.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.95)`;
+      c.shadowColor = `rgba(${r}, ${g}, ${b}, 0.8)`;
+      c.shadowBlur = 8;
+      c.stroke();
+      c.shadowBlur = 0;
+
+      c.beginPath();
+      c.arc(cx, cx, 4, 0, Math.PI * 2);
+      c.fillStyle = "#ffffff";
+      c.fill();
+    } else if (style === "shaded_sphere") {
+      const grad = c.createRadialGradient(cx - 6, cx - 6, 2, cx, cx, 22);
+      grad.addColorStop(0, "#ffffff");
+      grad.addColorStop(0.3, `rgb(${r}, ${g}, ${b})`);
+      grad.addColorStop(0.85, `rgb(${Math.round(r * 0.4)}, ${Math.round(g * 0.4)}, ${Math.round(b * 0.4)})`);
+      grad.addColorStop(1, "rgba(0, 0, 0, 0.9)");
+      c.fillStyle = grad;
+      c.beginPath();
+      c.arc(cx, cx, 22, 0, Math.PI * 2);
+      c.fill();
+    } else if (style === "sparkle_particle") {
+      c.save();
+      c.translate(cx, cx);
+      c.fillStyle = `rgba(${r}, ${g}, ${b}, 0.95)`;
+      c.beginPath();
+      c.moveTo(0, -22);
+      c.quadraticCurveTo(0, 0, 22, 0);
+      c.quadraticCurveTo(0, 0, 0, 22);
+      c.quadraticCurveTo(0, 0, -22, 0);
+      c.quadraticCurveTo(0, 0, 0, -22);
+      c.fill();
+      c.beginPath();
+      c.arc(0, 0, 5, 0, Math.PI * 2);
+      c.fillStyle = "#ffffff";
+      c.fill();
+      c.restore();
+    } else {
+      const grad = c.createRadialGradient(cx, cx, 2, cx, cx, cx);
+      grad.addColorStop(0, `rgba(255, 255, 255, 1)`);
+      grad.addColorStop(0.28, ` rgba(${r}, ${g}, ${b}, 0.95)`);
+      grad.addColorStop(0.6, `rgba(${r}, ${g}, ${b}, 0.35)`);
+      grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+      c.fillStyle = grad;
+      c.beginPath();
+      c.arc(cx, cx, cx, 0, Math.PI * 2);
+      c.fill();
+    }
+
     this.spriteCache.set(key, sp);
     return sp;
   }
@@ -138,11 +267,7 @@ export class StageRenderer {
 
     // 1. Trail fade or full clear
     const fadeAlpha = cfg.look.trail.enabled ? cfg.look.trail.fade_alpha : 1.0;
-    this.trailCtx.save();
-    this.trailCtx.globalAlpha = state.frame === 0 ? 1.0 : fadeAlpha;
-    this.trailCtx.fillStyle = cfg.look.background || "#060609";
-    this.trailCtx.fillRect(0, 0, this.width, this.height);
-    this.trailCtx.restore();
+    this.renderBackground(this.trailCtx, state.frame === 0 ? 1.0 : fadeAlpha, state.timeSec);
 
     // 2. Scene content onto trail canvas
     if (state.sceneType === "ALGORITHM_ARENA" && state.image) {
@@ -156,11 +281,23 @@ export class StageRenderer {
       this.renderBalls(this.trailCtx, state, scaleX, scaleY);
     }
 
-    // 3. Deterministic screen shake
+    // 3. Outro calm period & Deterministic screen shake
+    const calmOutroSec = cfg.arc.calm_outro_sec ?? 3.0;
+    const remainingSec = Math.max(0, (state.totalFrames - state.frame) / cfg.meta.fps);
+    let outroCalmFactor = 1.0;
+    if (calmOutroSec > 0) {
+      if (remainingSec <= calmOutroSec) {
+        outroCalmFactor = 0.0;
+      } else if (remainingSec < calmOutroSec + 0.6) {
+        const u = (remainingSec - calmOutroSec) / 0.6;
+        outroCalmFactor = u * u * (3 - 2 * u);
+      }
+    }
+
     let shakeX = 0;
     let shakeY = 0;
     const tShake = tension > cfg.feel.shake_tension ? (tension - cfg.feel.shake_tension) / Math.max(0.05, 1 - cfg.feel.shake_tension) : 0;
-    const totalShake = Math.min(1.5, tShake + state.shake);
+    const totalShake = Math.min(1.5, tShake + state.shake) * outroCalmFactor;
     if (totalShake > 0.01 && cfg.feel.shake_amount > 0) {
       const amp = totalShake * cfg.feel.shake_amount * scaleX;
       shakeX = Math.sin(state.frame * 2.3) * amp;
@@ -168,8 +305,7 @@ export class StageRenderer {
     }
 
     this.ctx.save();
-    this.ctx.fillStyle = cfg.look.background || "#060609";
-    this.ctx.fillRect(0, 0, this.width, this.height);
+    this.renderBackground(this.ctx, 1.0, state.timeSec);
     this.ctx.translate(shakeX, shakeY);
     this.ctx.drawImage(this.trailCanvas, 0, 0);
     this.ctx.restore();
@@ -191,8 +327,8 @@ export class StageRenderer {
       this.ctx.restore();
     }
 
-    // 5. Safe Flash guard (limits bright flashes to <= 3/sec and caps intensity)
-    if (state.flash > 0.05) {
+    // 5. Safe Flash guard (limits bright flashes to <= 3/sec, caps intensity, suppressed in calm outro)
+    if (state.flash > 0.05 && outroCalmFactor > 0.01) {
       let allowFlash = true;
       if (cfg.look.safe_flash) {
         if (state.timeSec - this.lastFlashTimeSec < 0.34 && state.flash > 0.35) {
@@ -202,13 +338,51 @@ export class StageRenderer {
         }
       }
       if (allowFlash) {
-        const maxAlpha = cfg.look.safe_flash ? 0.22 : 0.55;
+        const maxAlpha = (cfg.look.safe_flash ? 0.22 : 0.55) * outroCalmFactor;
         this.ctx.save();
         this.ctx.fillStyle = "#ffffff";
         this.ctx.globalAlpha = Math.min(maxAlpha, state.flash * maxAlpha);
         this.ctx.fillRect(0, 0, this.width, this.height);
         this.ctx.restore();
       }
+    }
+
+    // 5.5 Post-processing passes: Chromatic Aberration, Scanlines, Vignette
+    const ca = cfg.look.chromatic_aberration ?? 0;
+    if ((ca > 0.1 || (tension > 0.88 && ca > 0)) && outroCalmFactor > 0.01) {
+      const shift = Math.max(1, ca * scaleX * (0.6 + 0.6 * tension * outroCalmFactor));
+      this.ctx.save();
+      this.ctx.globalCompositeOperation = "screen";
+      this.ctx.globalAlpha = 0.28 * outroCalmFactor;
+      this.ctx.drawImage(this.trailCanvas, shift, 0);
+      this.ctx.drawImage(this.trailCanvas, -shift, 0);
+      this.ctx.restore();
+    }
+
+    const sl = cfg.look.scanlines ?? 0;
+    if (sl > 0.05) {
+      this.ctx.save();
+      this.ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+      this.ctx.globalAlpha = sl * 0.4;
+      const step = Math.max(3, Math.round(4 * scaleY));
+      for (let y = 0; y < this.height; y += step) {
+        this.ctx.fillRect(0, y, this.width, Math.max(1, 1.2 * scaleY));
+      }
+      this.ctx.restore();
+    }
+
+    const vig = cfg.look.vignette ?? 0.35;
+    if (vig > 0.05) {
+      this.ctx.save();
+      const cx = this.width / 2;
+      const cy = this.height / 2;
+      const maxR = Math.hypot(cx, cy);
+      const grad = this.ctx.createRadialGradient(cx, cy, maxR * 0.45, cx, cy, maxR);
+      grad.addColorStop(0, "rgba(0, 0, 0, 0)");
+      grad.addColorStop(1, `rgba(0, 0, 0, ${Math.min(0.92, vig * 0.85)})`);
+      this.ctx.fillStyle = grad;
+      this.ctx.fillRect(0, 0, this.width, this.height);
+      this.ctx.restore();
     }
 
     // 6. HUD overlay
@@ -267,24 +441,25 @@ export class StageRenderer {
     const glowScale = Math.max(1.2, 1.5 + cfg.look.glow * 0.55);
     const doSquash = cfg.feel.squash_stretch;
     const pitchHue = cfg.look.pitch_hue;
+    const ballStyle = cfg.look.ball_style || "glow";
 
     // Resolve per-lane base RGB
     const laneSprites: HTMLCanvasElement[] = [];
     if (cfg.scene.type === "TOWER_BREAKER") {
       for (const l of cfg.scene.lanes) {
         const [r, g, b] = hexToRgb(l.color);
-        laneSprites.push(this.getBallSprite(r, g, b));
+        laneSprites.push(this.getBallSprite(r, g, b, ballStyle));
       }
     } else if (cfg.scene.type === "MAZE_ESCAPE") {
       const [r, g, b] = hexToRgb(cfg.scene.color);
-      laneSprites.push(this.getBallSprite(r, g, b));
+      laneSprites.push(this.getBallSprite(r, g, b, ballStyle));
     }
     if (laneSprites.length === 0) {
-      laneSprites.push(this.getBallSprite(0, 229, 255));
+      laneSprites.push(this.getBallSprite(0, 229, 255, ballStyle));
     }
 
     const [hr, hg, hb] = hslToRgb(this.activeHue, 0.95, 0.62);
-    const hueSprite = this.getBallSprite(hr, hg, hb);
+    const hueSprite = this.getBallSprite(hr, hg, hb, ballStyle);
 
     const px = pool.x, py = pool.y, pvx = pool.vx, pvy = pool.vy, pr = pool.r, pl = pool.lane, ph = pool.heat;
 
@@ -373,8 +548,44 @@ export class StageRenderer {
       targetCtx.fillStyle = "rgba(15, 23, 42, 0.88)";
       targetCtx.fillRect(x0, y - floorH / 2, fullW, floorH);
 
-      targetCtx.fillStyle = fl.glow > 0.25 ? "#ffffff" : laneCol;
-      targetCtx.fillRect(x0, y - floorH / 2, fullW * hpFrac, floorH);
+      const floorStyle = this.config.look.floor_style || "solid";
+      if (floorStyle === "neon_laser") {
+        targetCtx.save();
+        targetCtx.shadowColor = laneCol;
+        targetCtx.shadowBlur = 10 * scaleX;
+        targetCtx.fillStyle = fl.glow > 0.25 ? "#ffffff" : laneCol;
+        targetCtx.fillRect(x0, y - floorH / 2, fullW * hpFrac, floorH);
+        targetCtx.fillStyle = "#ffffff";
+        targetCtx.fillRect(x0, y - (floorH * 0.3) / 2, fullW * hpFrac, floorH * 0.3);
+        targetCtx.restore();
+      } else if (floorStyle === "glass_brick") {
+        targetCtx.fillStyle = fl.glow > 0.25 ? "#ffffff" : laneCol;
+        targetCtx.fillRect(x0, y - floorH / 2, fullW * hpFrac, floorH);
+        targetCtx.fillStyle = "rgba(0, 0, 0, 0.4)";
+        const segmentW = 24 * scaleX;
+        for (let bx = x0 + segmentW; bx < x0 + fullW * hpFrac; bx += segmentW) {
+          targetCtx.fillRect(bx - 1, y - floorH / 2, 2, floorH);
+        }
+      } else if (floorStyle === "striped_warning") {
+        targetCtx.fillStyle = fl.glow > 0.25 ? "#ffffff" : laneCol;
+        targetCtx.fillRect(x0, y - floorH / 2, fullW * hpFrac, floorH);
+        targetCtx.save();
+        targetCtx.beginPath();
+        targetCtx.rect(x0, y - floorH / 2, fullW * hpFrac, floorH);
+        targetCtx.clip();
+        targetCtx.strokeStyle = "rgba(0, 0, 0, 0.35)";
+        targetCtx.lineWidth = 4 * scaleX;
+        for (let sx = x0 - floorH; sx < x0 + fullW + floorH; sx += 14 * scaleX) {
+          targetCtx.beginPath();
+          targetCtx.moveTo(sx, y + floorH / 2);
+          targetCtx.lineTo(sx + floorH, y - floorH / 2);
+          targetCtx.stroke();
+        }
+        targetCtx.restore();
+      } else {
+        targetCtx.fillStyle = fl.glow > 0.25 ? "#ffffff" : laneCol;
+        targetCtx.fillRect(x0, y - floorH / 2, fullW * hpFrac, floorH);
+      }
 
       if (showLabels) {
         targetCtx.fillStyle = "#ffffff";

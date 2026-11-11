@@ -16,15 +16,24 @@ describe("@asmr/audio-core", () => {
     expect(triad).toHaveLength(4);
     expect(triad[1]).toBeGreaterThan(triad[0]);
     expect(triad[2]).toBeGreaterThan(triad[1]);
+
+    const hirajoshi = new Scale("D4", "hirajoshi", 2);
+    expect(hirajoshi.notes.length).toBe(11);
+    const wholeTone = new Scale("C4", "whole_tone", 2);
+    expect(wholeTone.notes.length).toBe(13);
   });
 
-  it("synthesizes finite, normalized modal PCM across all 5 palettes", () => {
+  it("synthesizes finite, normalized modal PCM across all palettes", () => {
     const palettes = [
       "kalimba_glow",
       "glass_bell",
       "marimba_wood",
       "thocky_keys",
-      "water_drop"
+      "water_drop",
+      "synth_pluck",
+      "music_box",
+      "crystal_bowl",
+      "cosmic_laser"
     ] as const;
 
     for (const p of palettes) {

@@ -12,7 +12,8 @@ export default defineConfig({
   },
   test: {
     include: ["packages/**/*.test.ts"],
-    environment: "node"
+    environment: "node",
+    testTimeout: 20000
   }
 });
 

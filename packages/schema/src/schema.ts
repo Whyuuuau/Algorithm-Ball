@@ -3,7 +3,7 @@ import { z } from "zod";
 /* ------------------------------------------------------------------ */
 /* Primitives                                                          */
 /* ------------------------------------------------------------------ */
-const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Format warna harus #RRGGBB");
+const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Color format must be #RRGGBB");
 export const TensionPointSchema = z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)]);
 
 /* ------------------------------------------------------------------ */
@@ -18,7 +18,7 @@ export const MetaConfigSchema = z.object({
 });
 
 export const ArcConfigSchema = z.object({
-  hook_text: z.string().default("1 MENIT. 3 TOWER.\nSIAPA PECAHKAN LANTAI 10?"),
+  hook_text: z.string().default("1 MINUTE. 3 TOWERS.\nWHO BREAKS FLOOR 10 FIRST?"),
   hook_duration_sec: z.number().min(0).max(30).default(3.5),
   tension_curve: z.array(TensionPointSchema).min(2).max(12).default([
     [0, 0.2],
@@ -27,7 +27,9 @@ export const ArcConfigSchema = z.object({
     [0.85, 1.0],
     [1, 0.4]
   ]),
-  loop_outro_sec: z.number().min(0).max(3).default(0.6)
+  loop_outro_sec: z.number().min(0).max(3).default(0.6),
+  /** Quiet outro grace period (sec): disables screen shake, flashes, and hit-stops near the end */
+  calm_outro_sec: z.number().min(0).max(10).default(3.0)
 });
 
 export const PhysicsConfigSchema = z.object({
@@ -44,7 +46,9 @@ export const PhysicsConfigSchema = z.object({
   bounce_kick: z.number().min(0).max(30).default(4),
   /** If > 0 every ball is forced to this speed (m/s). Useful for zero-g mazes. */
   speed_lock: z.number().min(0).max(120).default(0),
-  physical_cap: z.number().int().min(100).max(8000).default(3000)
+  physical_cap: z.number().int().min(100).max(8000).default(3000),
+  air_drag: z.number().min(0).max(0.1).default(0),
+  gravity_oscillation: z.number().min(0).max(10).default(0)
 });
 
 export const FeelConfigSchema = z.object({
@@ -61,7 +65,18 @@ export const FeelConfigSchema = z.object({
 /* Scenes                                                              */
 /* ------------------------------------------------------------------ */
 export const TowerFloorActionSchema = z.object({
-  op: z.enum(["NONE", "ADD", "MULTIPLY", "SCALE_SIZE", "SCALE_SPEED"]).default("NONE"),
+  op: z
+    .enum([
+      "NONE",
+      "ADD",
+      "MULTIPLY",
+      "FOUNTAIN",
+      "EXPLODE",
+      "SCALE_SIZE",
+      "SCALE_SPEED",
+      "GRAVITY_PULSE"
+    ])
+    .default("NONE"),
   value: z.number().default(1)
 });
 
@@ -73,6 +88,8 @@ export const TowerLaneSchema = z.object({
   /** radius in px on the 1080x1920 canvas */
   ball_radius: z.number().min(2).max(40).default(7),
   on_floor_break: TowerFloorActionSchema.default({ op: "MULTIPLY", value: 2 }),
+  /** Optional progressive per-floor action sequence [Floor 0, Floor 1, ...] */
+  floor_actions: z.array(TowerFloorActionSchema).optional(),
   /** Optional per-lane override of floor HP. */
   floors_hp: z.array(z.number().positive()).optional()
 });
@@ -104,9 +121,9 @@ export const TowerBreakerSceneSchema = z.object({
     .min(1)
     .max(4)
     .default([
-      { id: "a", label: "x2 / LANTAI", color: "#00e5ff", initial_balls: 1, ball_radius: 8, on_floor_break: { op: "MULTIPLY", value: 2 } },
-      { id: "b", label: "+50 / LANTAI", color: "#ff00aa", initial_balls: 20, ball_radius: 6, on_floor_break: { op: "ADD", value: 50 } },
-      { id: "c", label: "+300 / LANTAI", color: "#d4ff00", initial_balls: 100, ball_radius: 5, on_floor_break: { op: "ADD", value: 300 } }
+      { id: "a", label: "x2 / FLOOR", color: "#00e5ff", initial_balls: 1, ball_radius: 8, on_floor_break: { op: "MULTIPLY", value: 2 } },
+      { id: "b", label: "+3 / FLOOR", color: "#ff00aa", initial_balls: 3, ball_radius: 7, on_floor_break: { op: "ADD", value: 3 } },
+      { id: "c", label: "+5 / FLOOR", color: "#d4ff00", initial_balls: 5, ball_radius: 6, on_floor_break: { op: "ADD", value: 5 } }
     ]),
   pegs: PegsSchema.default({}),
   /** seconds without a break before damage doubles (sudden death) */
@@ -168,7 +185,17 @@ export const SceneConfigSchema = z.discriminatedUnion("type", [
 /* ------------------------------------------------------------------ */
 /* Sound                                                               */
 /* ------------------------------------------------------------------ */
-export const PaletteNameSchema = z.enum(["kalimba_glow", "glass_bell", "marimba_wood", "thocky_keys", "water_drop"]);
+export const PaletteNameSchema = z.enum([
+  "kalimba_glow",
+  "glass_bell",
+  "marimba_wood",
+  "thocky_keys",
+  "water_drop",
+  "synth_pluck",
+  "music_box",
+  "crystal_bowl",
+  "cosmic_laser"
+]);
 
 export const SoundConfigSchema = z.object({
   palette: PaletteNameSchema.default("kalimba_glow"),
@@ -176,12 +203,28 @@ export const SoundConfigSchema = z.object({
   scale: z
     .object({
       root: z.string().regex(/^[A-Ga-g]#?-?\d$/).default("C4"),
-      mode: z.enum(["pentatonic_major", "pentatonic_minor", "dorian", "lydian", "major", "minor"]).default("pentatonic_major"),
+      mode: z
+        .enum([
+          "pentatonic_major",
+          "pentatonic_minor",
+          "dorian",
+          "lydian",
+          "major",
+          "minor",
+          "hirajoshi",
+          "insen",
+          "gypsy_minor",
+          "whole_tone",
+          "blues"
+        ])
+        .default("pentatonic_major"),
       octaves: z.number().int().min(1).max(5).default(3)
     })
     .default({}),
   /** how the pitch of a hit is picked */
-  note_mapping: z.enum(["x_position", "lane_floor", "random"]).default("x_position"),
+  note_mapping: z
+    .enum(["melodic_step", "floor_level", "x_position", "lane_floor", "random"])
+    .default("melodic_step"),
   quantizer: z
     .object({
       mode: z.enum(["FREE", "HARMONIC", "GRID"]).default("HARMONIC"),
@@ -197,9 +240,9 @@ export const SoundConfigSchema = z.object({
       min_hits: z.number().int().min(2).max(100).default(6)
     })
     .default({}),
-  cooldown_ms: z.number().min(0).max(200).default(24),
+  cooldown_ms: z.number().min(0).max(200).default(36),
   polyphony: z.number().int().min(4).max(128).default(48),
-  max_events_per_frame: z.number().int().min(1).max(12).default(2),
+  max_events_per_frame: z.number().int().min(1).max(32).default(8),
   wall_ticks: z.boolean().default(false),
   spatial: z
     .object({
@@ -238,8 +281,24 @@ export const SoundConfigSchema = z.object({
 /* ------------------------------------------------------------------ */
 /* Look                                                                */
 /* ------------------------------------------------------------------ */
+export const BackgroundStyleSchema = z.enum([
+  "solid",
+  "radial_vignette",
+  "deep_space_stars",
+  "cyber_grid",
+  "aurora_gradient"
+]);
+export const BallStyleSchema = z.enum(["glow", "neon_ring", "shaded_sphere", "sparkle_particle"]);
+export const FloorStyleSchema = z.enum(["solid", "neon_laser", "glass_brick", "striped_warning"]);
+
 export const LookConfigSchema = z.object({
   background: hexColor.default("#060609"),
+  background_style: BackgroundStyleSchema.default("solid"),
+  ball_style: BallStyleSchema.default("glow"),
+  floor_style: FloorStyleSchema.default("solid"),
+  vignette: z.number().min(0).max(1).default(0.35),
+  chromatic_aberration: z.number().min(0).max(20).default(0),
+  scanlines: z.number().min(0).max(1).default(0),
   bloom: z
     .object({
       enabled: z.boolean().default(true),
@@ -358,6 +417,9 @@ export type LookConfig = z.infer<typeof LookConfigSchema>;
 export type RuleConfig = z.infer<typeof RuleConfigSchema>;
 export type RuleAction = z.infer<typeof RuleActionSchema>;
 export type PaletteName = z.infer<typeof PaletteNameSchema>;
+export type BackgroundStyle = z.infer<typeof BackgroundStyleSchema>;
+export type BallStyle = z.infer<typeof BallStyleSchema>;
+export type FloorStyle = z.infer<typeof FloorStyleSchema>;
 
 /** Resolve the HP list of one lane (lane override > scene formula). */
 export function resolveFloorHp(scene: TowerBreakerSceneConfig, lane: TowerLane): number[] {

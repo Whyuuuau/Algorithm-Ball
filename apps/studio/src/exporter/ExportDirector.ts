@@ -8,7 +8,9 @@ import {
   Mp4OutputFormat,
   BufferTarget,
   CanvasSource,
-  AudioBufferSource
+  AudioBufferSource,
+  canEncodeVideo,
+  canEncodeAudio
 } from "mediabunny";
 
 export { evaluateTensionCurve };
@@ -23,17 +25,33 @@ export interface ExportProgress {
 export class ExportDirector {
   public static async checkWebCodecsSupport(): Promise<{ supported: boolean; reason?: string }> {
     if (typeof window === "undefined" || typeof VideoEncoder === "undefined") {
-      return { supported: false, reason: "WebCodecs VideoEncoder tidak tersedia di browser ini." };
+      return { supported: false, reason: "WebCodecs VideoEncoder is not available in this browser. Please use the latest desktop Chrome or Edge." };
     }
     try {
-      const support = await VideoEncoder.isConfigSupported({
-        codec: "avc1.640028",
-        width: 1080,
-        height: 1920,
-        bitrate: 14_000_000,
-        framerate: 60
-      });
-      return { supported: !!support.supported };
+      const candidates = [
+        "avc1.640033", // High Level 5.1
+        "avc1.64002a", // High Level 4.2
+        "avc1.4d0033", // Main Level 5.1
+        "avc1.420033", // Baseline Level 5.1
+        "avc1.640028"  // High Level 4.0
+      ];
+      for (const codec of candidates) {
+        try {
+          const support = await VideoEncoder.isConfigSupported({
+            codec,
+            width: 1080,
+            height: 1920,
+            bitrate: 14_000_000,
+            framerate: 60
+          });
+          if (support.supported) return { supported: true };
+        } catch {
+          // Probe next candidate
+        }
+      }
+      const mbSupported = await canEncodeVideo("avc", { width: 1080, height: 1920 }).catch(() => false);
+      if (mbSupported) return { supported: true };
+      return { supported: false, reason: "H.264 1080×1920 @ 60 FPS video format is not supported by this browser's hardware encoder." };
     } catch (e: unknown) {
       return { supported: false, reason: e instanceof Error ? e.message : String(e) };
     }
@@ -55,7 +73,7 @@ export class ExportDirector {
     headlessSim.initSync();
 
     for (let f = 0; f < totalFrames; f++) {
-      if (signal?.aborted) throw new DOMException("Export dibatalkan", "AbortError");
+      if (signal?.aborted) throw new DOMException("Export cancelled by user", "AbortError");
       headlessSim.step();
       if (f % 120 === 0) {
         onProgress({
@@ -71,13 +89,18 @@ export class ExportDirector {
     onProgress({ phase: "RENDERING_AUDIO", frame: totalFrames, totalFrames, progressPercent: 24 });
     await new Promise((r) => setTimeout(r, 0));
 
-    const audioDirector = new AudioDirector(config.sound);
-    const hitLog = headlessSim.getHitLog();
-    const audioBuffer = await audioDirector.renderAudioBuffer(
-      hitLog,
-      config.meta.duration_sec,
-      config.arc
-    );
+    let audioBuffer: AudioBuffer | null = null;
+    try {
+      const audioDirector = new AudioDirector(config.sound);
+      const hitLog = headlessSim.getHitLog();
+      audioBuffer = await audioDirector.renderAudioBuffer(
+        hitLog,
+        config.meta.duration_sec,
+        config.arc
+      );
+    } catch (err) {
+      console.warn("Failed to render offline audio, continuing without audio track:", err);
+    }
 
     // PASS 2: Re-run identical simulation at 1080x1920 and stream frames to WebCodecs
     onProgress({ phase: "RENDERING_VIDEO", frame: 0, totalFrames, progressPercent: 30 });
@@ -109,19 +132,39 @@ export class ExportDirector {
     });
     output.addVideoTrack(videoSource, { frameRate: fps });
 
-    const audioSource = new AudioBufferSource({
-      codec: "aac",
-      bitrate: audioBitrate
-    });
-    output.addAudioTrack(audioSource);
+    // Audio support check with automatic fallback: AAC -> Opus -> silent
+    let audioSource: AudioBufferSource | null = null;
+    if (audioBuffer) {
+      try {
+        const canAac = typeof AudioEncoder !== "undefined" && (await canEncodeAudio("aac").catch(() => false));
+        const canOpus = typeof AudioEncoder !== "undefined" && (await canEncodeAudio("opus").catch(() => false));
+        const chosenCodec = canAac ? "aac" : canOpus ? "opus" : null;
+        if (chosenCodec) {
+          audioSource = new AudioBufferSource({
+            codec: chosenCodec,
+            bitrate: audioBitrate
+          });
+          output.addAudioTrack(audioSource);
+        }
+      } catch (err) {
+        console.warn("Audio track initialization skipped:", err);
+      }
+    }
 
     await output.start();
-    await audioSource.add(audioBuffer);
+
+    if (audioSource && audioBuffer) {
+      try {
+        await audioSource.add(audioBuffer);
+      } catch (err) {
+        console.warn("Audio buffer encoding skipped:", err);
+      }
+    }
 
     for (let f = 0; f < totalFrames; f++) {
       if (signal?.aborted) {
         await output.cancel();
-        throw new DOMException("Export dibatalkan", "AbortError");
+        throw new DOMException("Export cancelled by user", "AbortError");
       }
 
       const state = videoSim.step();
@@ -148,7 +191,7 @@ export class ExportDirector {
 
     const mp4Bytes = target.buffer;
     if (!mp4Bytes) {
-      throw new Error("Output buffer Mediabunny kosong");
+      throw new Error("Output buffer Mediabunny kosong setelah finalize()");
     }
 
     onProgress({ phase: "FINALIZING", frame: totalFrames, totalFrames, progressPercent: 100 });

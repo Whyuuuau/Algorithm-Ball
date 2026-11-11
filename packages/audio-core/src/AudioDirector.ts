@@ -30,11 +30,19 @@ export interface OfflineAudioResult {
 
 const sharedBank = new SampleBank();
 
+/**
+ * Soothing ascending/descending arpeggio contour that makes successive bounces
+ * step through harmonious melodic phrases like a music box or kalimba.
+ */
+const MELODIC_CONTOUR = [0, 2, 4, 5, 7, 5, 4, 2, 0, 3, 5, 7, 9, 7, 5, 3, 1, 2, 4, 7, 8, 7, 5, 4];
+
 export class AudioDirector {
   public readonly config: SoundConfig;
   public readonly scale: Scale;
   private readonly bank: SampleBank = sharedBank;
   private lastLaneTime: number[] = [-1e9, -1e9, -1e9, -1e9, -1e9, -1e9, -1e9, -1e9];
+  private lastHitGates = new Float64Array(64).fill(-1e9);
+  private liveLaneSteps = new Int32Array(16);
 
   // Browser live WebAudio state
   private liveCtx: AudioContext | null = null;
@@ -52,24 +60,44 @@ export class AudioDirector {
 
   public resetLiveGates(): void {
     this.lastLaneTime.fill(-1e9);
+    this.lastHitGates.fill(-1e9);
+    this.liveLaneSteps.fill(0);
   }
 
   /** Map a single HitEvent to a raw MIDI pitch before scale/chord quantisation. */
-  private pickRawMidi(ev: HitEvent, tension: number): number {
+  private pickRawMidi(ev: HitEvent, tension: number, stepIndex: number = 0): number {
     const cfg = this.config;
     const notes = this.scale.notes;
     const span = notes.length;
     let deg = 0;
-    if (cfg.note_mapping === "x_position") {
+
+    if (cfg.note_mapping === "melodic_step") {
+      // Step through harmonious melodic motif per lane
+      const center = Math.floor(span * 0.28);
+      const motifOffset = MELODIC_CONTOUR[stepIndex % MELODIC_CONTOUR.length];
+      const laneShift = (ev.lane * 2) % 4;
+      deg = Math.max(0, Math.min(span - 1, center + motifOffset + laneShift));
+      if (ev.kind === "peg") {
+        deg = Math.min(span - 1, deg + 4);
+      }
+    } else if (cfg.note_mapping === "floor_level") {
+      // Pitch ascends as floors descend, building anticipation and tension
+      const floorDegree = Math.abs(ev.index) * 2 + (ev.lane & 1);
+      deg = floorDegree % span;
+      if (ev.kind === "peg") {
+        deg = Math.min(span - 1, deg + 4);
+      }
+    } else if (cfg.note_mapping === "x_position") {
       deg = Math.floor(Math.max(0, Math.min(0.999, ev.x)) * span);
     } else if (cfg.note_mapping === "lane_floor") {
-      deg = (ev.lane * 3 + ev.index) % span;
+      deg = (ev.lane * 3 + Math.abs(ev.index)) % span;
     } else {
       const h = Math.imul((ev.index * 2654435761) ^ Math.round(ev.x * 997), 1597334677) >>> 0;
       deg = h % span;
     }
+
     const base = notes[Math.max(0, Math.min(span - 1, deg))];
-    const floorEsc = Math.min(18, (ev.index - 1) * cfg.escalation.pitch_semitones_per_floor);
+    const floorEsc = Math.min(18, Math.max(0, ev.index - 1) * cfg.escalation.pitch_semitones_per_floor);
     const tensEsc = tension * cfg.escalation.tension_semitones;
     const breakBoost = ev.kind === "break" || ev.kind === "ring_break" || ev.kind === "exit" ? 7 : 0;
     return Math.max(36, Math.min(96, Math.round(base + floorEsc + tensEsc + breakBoost + ev.shift)));
@@ -96,8 +124,10 @@ export class AudioDirector {
     tensionCurve?: ReadonlyArray<readonly [number, number]>
   ): NoteEvent[] {
     const cfg = this.config;
-    const cooldownSec = cfg.cooldown_ms / 1000;
-    const lastByLane = new Float64Array(16).fill(-1e9);
+    // Micro-debounce (<= 10ms) prevents duplicate contacts on the exact same surface
+    // while ensuring every single distinct ball bounce produces its acoustic voice.
+    const debounceSec = Math.min(0.010, Math.max(0.005, cfg.cooldown_ms / 1000));
+    const lastHitGate = new Float64Array(64).fill(-1e9);
     const filtered: HitEvent[] = [];
 
     const gridSec = 60 / Math.max(40, cfg.quantizer.bpm) / 4; // 1/16 note
@@ -105,9 +135,11 @@ export class AudioDirector {
 
     for (const h of rawHits) {
       if (h.t < 0 || h.t > durationSec) continue;
-      const l = h.lane & 15;
+      const l = h.lane & 7;
+      const kindIdx = h.kind === "floor" ? 0 : h.kind === "peg" ? 1 : h.kind === "wall" ? 2 : 3;
+      const gateKey = (l << 2) | kindIdx;
       const isBreak = h.kind === "break" || h.kind === "ring_break" || h.kind === "exit";
-      if (!isBreak && h.t - lastByLane[l] < cooldownSec) continue;
+      if (!isBreak && h.t - lastHitGate[gateKey] < debounceSec) continue;
 
       let t = h.t;
       if (cfg.quantizer.mode === "GRID" && !isBreak) {
@@ -121,11 +153,12 @@ export class AudioDirector {
         }
       }
 
-      lastByLane[l] = t;
+      lastHitGate[gateKey] = t;
       filtered.push(t === h.t ? h : { ...h, t });
     }
 
     const out: NoteEvent[] = [];
+    const stepByLane = new Int32Array(16);
     const winSec = cfg.chord_on_density.window_ms / 1000;
     const minHits = cfg.chord_on_density.min_hits;
     let i = 0;
@@ -134,6 +167,10 @@ export class AudioDirector {
       const first = filtered[i];
       const progress = durationSec > 0 ? first.t / durationSec : 0;
       const tension = tensionCurve ? evaluateTensionCurve(tensionCurve, progress) : 0.5;
+      const l = first.lane & 15;
+      const step = stepByLane[l]++;
+      const isPeg = first.kind === "peg";
+      const isBreak = first.kind === "break" || first.kind === "ring_break" || first.kind === "exit";
 
       // Count hits in sliding window (accounting for merged raw impacts `n`)
       let j = i;
@@ -146,7 +183,7 @@ export class AudioDirector {
       }
 
       if (cfg.chord_on_density.enabled && (j - i >= minHits || hitSum >= minHits * 2)) {
-        const root = this.quantizeMidi(this.pickRawMidi(first, tension), first.t);
+        const root = this.quantizeMidi(this.pickRawMidi(first, tension, step), first.t);
         const v = Math.min(1, Math.pow(velSum, 0.6) / 2.2) * cfg.volume;
         const triad = [root, this.scale.nearest(root + 4), this.scale.nearest(root + 7)];
         for (let k = 0; k < 3; k++) {
@@ -162,8 +199,12 @@ export class AudioDirector {
         }
         i = j;
       } else {
-        const midi = this.quantizeMidi(this.pickRawMidi(first, tension), first.t);
-        const v = Math.min(1, Math.pow(Math.max(0.1, first.vel), 0.6)) * cfg.volume;
+        const midi = this.quantizeMidi(this.pickRawMidi(first, tension, step), first.t);
+        // Physical collision momentum driving strike amplitude
+        const rawVel = Math.max(0.08, Math.min(1.0, first.vel));
+        const dynamicGain = (0.28 + 0.72 * Math.pow(rawVel, 0.75)) * cfg.volume;
+        const velMultiplier = isPeg ? 0.45 : 1.0;
+        const v = Math.min(1, dynamicGain * velMultiplier);
         out.push({
           t: first.t,
           palette: cfg.palette,
@@ -173,13 +214,22 @@ export class AudioDirector {
           y: first.y,
           lane: first.lane
         });
-        if (first.kind === "break" || first.kind === "ring_break") {
-          // Octave shimmer on break
+        if (isBreak) {
+          // Rich resonant chord chime on break (+7 fifth, +12 octave shimmer)
           out.push({
             t: first.t + 0.012,
             palette: cfg.palette,
             midi: Math.min(96, midi + 7),
-            vel: v * 0.75,
+            vel: v * 0.8,
+            x: first.x,
+            y: first.y,
+            lane: first.lane
+          });
+          out.push({
+            t: first.t + 0.024,
+            palette: cfg.palette,
+            midi: Math.min(96, midi + 12),
+            vel: v * 0.65,
             x: first.x,
             y: first.y,
             lane: first.lane
@@ -427,12 +477,30 @@ export class AudioDirector {
     ctx?: BaseAudioContext
   ): Promise<AudioBuffer> {
     const pcm = this.renderOfflinePCM(rawHits, durationSec, SAMPLE_RATE, arc);
-    const audioContext =
-      ctx || (typeof AudioContext !== "undefined" ? new AudioContext({ sampleRate: SAMPLE_RATE }) : null);
-    if (!audioContext) {
-      throw new Error("AudioContext is not available in current environment");
+    let audioBuffer: AudioBuffer;
+    if (ctx) {
+      audioBuffer = ctx.createBuffer(2, pcm.length, SAMPLE_RATE);
+    } else if (typeof AudioBuffer !== "undefined" && typeof AudioBuffer === "function") {
+      try {
+        audioBuffer = new AudioBuffer({
+          length: pcm.length,
+          numberOfChannels: 2,
+          sampleRate: SAMPLE_RATE
+        });
+      } catch {
+        const octx = new OfflineAudioContext(2, pcm.length, SAMPLE_RATE);
+        audioBuffer = octx.createBuffer(2, pcm.length, SAMPLE_RATE);
+      }
+    } else if (typeof OfflineAudioContext !== "undefined") {
+      const octx = new OfflineAudioContext(2, pcm.length, SAMPLE_RATE);
+      audioBuffer = octx.createBuffer(2, pcm.length, SAMPLE_RATE);
+    } else if (typeof AudioContext !== "undefined") {
+      const actx = new AudioContext({ sampleRate: SAMPLE_RATE });
+      audioBuffer = actx.createBuffer(2, pcm.length, SAMPLE_RATE);
+      void actx.close();
+    } else {
+      throw new Error("AudioBuffer is not available in current environment");
     }
-    const audioBuffer = audioContext.createBuffer(2, pcm.length, SAMPLE_RATE);
     audioBuffer.copyToChannel(pcm.leftChannel, 0);
     audioBuffer.copyToChannel(pcm.rightChannel, 1);
     return audioBuffer;
@@ -455,21 +523,30 @@ export class AudioDirector {
     if (!ctx || hits.length === 0) return null;
 
     const cfg = this.config;
-    const cooldownSec = cfg.cooldown_ms / 1000;
+    const debounceSec = Math.min(0.010, Math.max(0.005, cfg.cooldown_ms / 1000));
     let lastMidi: number | null = null;
 
     for (const h of hits) {
       const l = h.lane & 7;
+      const kindIdx = h.kind === "floor" ? 0 : h.kind === "peg" ? 1 : h.kind === "wall" ? 2 : 3;
+      const gateKey = (l << 2) | kindIdx;
       const isBreak = h.kind === "break" || h.kind === "ring_break" || h.kind === "exit";
-      if (!isBreak && h.t - this.lastLaneTime[l] < cooldownSec) continue;
-      this.lastLaneTime[l] = h.t;
+      const isPeg = h.kind === "peg";
+      if (!isBreak && h.t - this.lastHitGates[gateKey] < debounceSec) continue;
+      this.lastHitGates[gateKey] = h.t;
+      const step = this.liveLaneSteps[l]++;
 
-      const midi = this.quantizeMidi(this.pickRawMidi(h, tension), h.t);
+      const midi = this.quantizeMidi(this.pickRawMidi(h, tension, step), h.t);
       lastMidi = midi;
-      const vel = Math.min(1, Math.pow(Math.max(0.12, h.vel), 0.6)) * cfg.volume;
+      // Physical momentum driving volume & dynamic response
+      const rawVel = Math.max(0.08, Math.min(1.0, h.vel));
+      const dynamicGain = (0.28 + 0.72 * Math.pow(rawVel, 0.75)) * cfg.volume;
+      const velMultiplier = isPeg ? 0.45 : 1.0;
+      const vel = Math.min(1, dynamicGain * velMultiplier);
       this.triggerLiveVoice(ctx, cfg.palette, midi, vel, h.x, h.y);
       if (isBreak) {
-        this.triggerLiveVoice(ctx, cfg.palette, Math.min(96, midi + 7), vel * 0.75, h.x, h.y, 0.015);
+        this.triggerLiveVoice(ctx, cfg.palette, Math.min(96, midi + 7), vel * 0.8, h.x, h.y, 0.012);
+        this.triggerLiveVoice(ctx, cfg.palette, Math.min(96, midi + 12), vel * 0.65, h.x, h.y, 0.024);
       }
     }
     return lastMidi;

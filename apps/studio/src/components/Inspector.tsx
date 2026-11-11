@@ -3,6 +3,9 @@ import { useProjectStore } from "../store/projectStore.js";
 import {
   type PaletteName,
   type RuleConfig,
+  type BackgroundStyle,
+  type BallStyle,
+  type FloorStyle,
   PRESETS,
   TowerBreakerSceneSchema,
   MazeEscapeSceneSchema,
@@ -26,7 +29,8 @@ import {
   Sparkles,
   Upload,
   FileJson,
-  Save
+  Save,
+  AlertTriangle
 } from "lucide-react";
 
 export const Inspector: React.FC = () => {
@@ -53,9 +57,11 @@ export const Inspector: React.FC = () => {
     setExportedBlob
   } = useProjectStore();
 
+  const [presetCategory, setPresetCategory] = useState<string>("ALL");
   const [presetName, setPresetName] = useState("");
   const [jsonText, setJsonText] = useState("");
   const [jsonMsg, setJsonMsg] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const handleAudition = () => {
@@ -102,13 +108,15 @@ export const Inspector: React.FC = () => {
     try {
       setExporting(true);
       setExportedBlob(null);
+      setExportError(null);
 
       const check = await ExportDirector.checkWebCodecsSupport();
       if (!check.supported) {
-        alert(
-          "WebCodecs VideoEncoder tidak didukung di browser ini.\n" +
-            (check.reason || "Gunakan Chrome atau Edge desktop.")
-        );
+        const msg =
+          "WebCodecs VideoEncoder tidak didukung di browser ini: " +
+          (check.reason || "Gunakan Google Chrome atau Microsoft Edge desktop terbaru.");
+        setExportError(msg);
+        alert(msg);
         setExporting(false);
         return;
       }
@@ -135,7 +143,9 @@ export const Inspector: React.FC = () => {
       URL.revokeObjectURL(url);
     } catch (e: unknown) {
       if ((e as DOMException)?.name !== "AbortError") {
-        alert("Export gagal: " + (e instanceof Error ? e.message : String(e)));
+        const errStr = e instanceof Error ? e.message : String(e);
+        setExportError(errStr);
+        alert("Export failed: " + errStr);
       }
     } finally {
       abortRef.current = null;
@@ -177,10 +187,10 @@ export const Inspector: React.FC = () => {
         {(
           [
             ["scene", "Scene", Layers],
-            ["physics", "Fisika", Sliders],
-            ["sound", "Suara", Music],
+            ["physics", "Physics", Sliders],
+            ["sound", "Audio", Music],
             ["look", "Visual", Eye],
-            ["arc", "Arc/Rule", TrendingUp],
+            ["arc", "Arc/Rules", TrendingUp],
             ["export", "Export", Download]
           ] as const
         ).map(([id, label, Icon]) => (
@@ -204,29 +214,87 @@ export const Inspector: React.FC = () => {
         {/* ============================================================ */}
         {activeTab === "scene" && (
           <div className="space-y-4">
-            {/* Presets */}
-            <div>
-              <label className="text-slate-400 block mb-1.5 font-semibold">Preset Bawaan (7 Template)</label>
-              <div className="grid grid-cols-2 gap-1.5">
-                {Object.entries(PRESETS).map(([key, item]) => (
-                  <button
-                    key={key}
-                    onClick={() => loadPreset(key)}
-                    className="bg-slate-800/90 hover:bg-slate-700 py-1.5 px-2.5 rounded font-medium text-left border border-slate-700/80 truncate cursor-pointer"
-                  >
-                    {item.label}
-                  </button>
-                ))}
+            {/* Presets Gallery */}
+            <div className="bg-slate-950 p-2.5 rounded border border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-slate-300 font-bold flex items-center gap-1.5 text-[11px]">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  Studio Presets & Templates ({Object.keys(PRESETS).length})
+                </label>
+              </div>
+
+              {/* Category Filter Pills */}
+              <div className="flex flex-wrap gap-1">
+                {(["ALL", "Satisfying & ASMR", "High Tension & Battle", "Sci-Fi & Cosmic", "Algorithm & Arena"] as const).map(
+                  (cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setPresetCategory(cat)}
+                      className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer ${
+                        presetCategory === cat
+                          ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                          : "bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800"
+                      }`}
+                    >
+                      {cat === "ALL" ? "All" : cat}
+                    </button>
+                  )
+                )}
+              </div>
+
+              {/* Preset Cards List */}
+              <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
+                {Object.entries(PRESETS)
+                  .filter(
+                    ([, item]) =>
+                      presetCategory === "ALL" ||
+                      item.category === presetCategory
+                  )
+                  .map(([key, item]) => {
+                    const isCurrent = config.meta.title === item.config.meta.title;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => loadPreset(key)}
+                        className={`w-full py-2 px-2.5 rounded text-left border transition-all cursor-pointer flex flex-col gap-0.5 ${
+                          isCurrent
+                            ? "bg-cyan-950/40 border-cyan-500/60 shadow-sm shadow-cyan-500/10"
+                            : "bg-slate-900/90 hover:bg-slate-800/90 border-slate-800 hover:border-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className={`font-semibold text-[11px] truncate ${isCurrent ? "text-cyan-300" : "text-slate-200"}`}>
+                            {item.label}
+                          </span>
+                          <span
+                            className={`text-[9px] px-1.5 py-0.2 rounded font-mono uppercase ${
+                              item.category === "Satisfying & ASMR"
+                                ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                                : item.category === "High Tension & Battle"
+                                ? "bg-rose-500/15 text-rose-300 border border-rose-500/30"
+                                : item.category === "Sci-Fi & Cosmic"
+                                ? "bg-purple-500/15 text-purple-300 border border-purple-500/30"
+                                : "bg-blue-500/15 text-blue-300 border border-blue-500/30"
+                            }`}
+                          >
+                            {item.category.split(" ")[0]}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 line-clamp-1">{item.description}</span>
+                      </button>
+                    );
+                  })}
               </div>
             </div>
 
             {/* Custom saved presets */}
             <div className="bg-slate-950 p-2.5 rounded border border-slate-800 space-y-2">
-              <span className="font-semibold text-slate-300 block">Preset Kustom Lokal</span>
+              <span className="font-semibold text-slate-300 block">Custom Local Presets</span>
               <div className="flex gap-1.5">
                 <input
                   type="text"
-                  placeholder="Nama preset baru..."
+                  placeholder="New preset name..."
                   value={presetName}
                   onChange={(e) => setPresetName(e.target.value)}
                   className="flex-1 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200"
@@ -240,7 +308,7 @@ export const Inspector: React.FC = () => {
                   }}
                   className="bg-cyan-600 hover:bg-cyan-500 text-white px-2.5 py-1 rounded flex items-center gap-1 font-semibold cursor-pointer"
                 >
-                  <Save className="w-3 h-3" /> Simpan
+                  <Save className="w-3 h-3" /> Save
                 </button>
               </div>
               {Object.keys(savedPresets).length > 0 && (
@@ -267,13 +335,13 @@ export const Inspector: React.FC = () => {
 
             {/* Mode Scene Switcher */}
             <div>
-              <label className="text-slate-400 block mb-1 font-semibold">Mode Arena</label>
+              <label className="text-slate-400 block mb-1 font-semibold">Arena Mode</label>
               <div className="grid grid-cols-3 gap-1">
                 {(
                   [
-                    ["TOWER_BREAKER", "Tower"],
-                    ["MAZE_ESCAPE", "Maze Rings"],
-                    ["ALGORITHM_ARENA", "Algoritma"]
+                    ["TOWER_BREAKER", "Tower Breaker"],
+                    ["MAZE_ESCAPE", "Maze Escape"],
+                    ["ALGORITHM_ARENA", "Algorithm"]
                   ] as const
                 ).map(([t, lbl]) => (
                   <button
@@ -308,7 +376,7 @@ export const Inspector: React.FC = () => {
                     updateConfig((p) => ({ ...p, seed: Math.floor(Math.random() * 9000000) + 1000000 }))
                   }
                   className="bg-slate-800 hover:bg-slate-700 px-3 rounded border border-slate-700 cursor-pointer"
-                  title="Acak Seed"
+                  title="Randomize Seed"
                 >
                   🎲
                 </button>
@@ -319,7 +387,7 @@ export const Inspector: React.FC = () => {
             {config.scene.type === "TOWER_BREAKER" && (
               <div className="space-y-3 pt-2 border-t border-slate-800">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-slate-200">Konfigurasi Lantai (HP)</span>
+                  <span className="font-semibold text-slate-200">Floor Durability (HP)</span>
                   <select
                     value={config.scene.floors_hp.mode}
                     onChange={(e) =>
@@ -332,14 +400,14 @@ export const Inspector: React.FC = () => {
                     className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-cyan-400"
                   >
                     <option value="manual">Manual Array</option>
-                    <option value="exponential">Eksponensial</option>
+                    <option value="exponential">Exponential Growth</option>
                   </select>
                 </div>
 
                 {config.scene.floors_hp.mode === "manual" ? (
                   <div>
                     <label className="text-[11px] text-slate-400 block mb-1">
-                      Daftar HP Lantai (pisahkan koma)
+                      Floor HP Values (comma-separated)
                     </label>
                     <input
                       type="text"
@@ -393,7 +461,7 @@ export const Inspector: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <span className="text-[10px] text-slate-400 block">Jml Lantai</span>
+                      <span className="text-[10px] text-slate-400 block">Floors Count</span>
                       <input
                         type="number"
                         min={1}
@@ -412,10 +480,33 @@ export const Inspector: React.FC = () => {
                   </div>
                 )}
 
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateConfig((p) => {
+                      if (p.scene.type !== "TOWER_BREAKER") return p;
+                      p.meta.duration_sec = 60;
+                      p.arc.calm_outro_sec = 3.0;
+                      p.scene.floors_hp.mode = "manual";
+                      p.scene.floors_hp.values = [10, 26, 60, 180, 520, 1400, 3800, 9500];
+                      p.scene.lanes.forEach((l) => {
+                        l.initial_balls = 1;
+                        l.on_floor_break = { op: "FOUNTAIN", value: 3 };
+                      });
+                      return p;
+                    })
+                  }
+                  className="w-full py-1.5 px-2 bg-gradient-to-r from-cyan-600/30 to-blue-600/30 hover:from-cyan-600/40 hover:to-blue-600/40 border border-cyan-500/40 rounded text-cyan-300 text-[11px] font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-sm"
+                  title="Calibrates floor HP so 1 solitary ball rhythmically breaks 8 floors over 60 seconds with a dramatic climax"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                  Auto-Calibrate for 60s Finish (1-Ball Start)
+                </button>
+
                 {/* Pegs Config */}
                 <div className="bg-slate-950 p-2.5 rounded border border-slate-800 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-300">Pin Rintangan (Pegs)</span>
+                    <span className="font-semibold text-slate-300">Peg Obstacles</span>
                     <input
                       type="checkbox"
                       checked={config.scene.pegs.enabled}
@@ -431,7 +522,7 @@ export const Inspector: React.FC = () => {
                   {config.scene.pegs.enabled && (
                     <div className="grid grid-cols-3 gap-2">
                       <div>
-                        <span className="text-[10px] text-slate-400 block">Baris</span>
+                        <span className="text-[10px] text-slate-400 block">Rows</span>
                         <input
                           type="number"
                           min={1}
@@ -448,7 +539,7 @@ export const Inspector: React.FC = () => {
                         />
                       </div>
                       <div>
-                        <span className="text-[10px] text-slate-400 block">Pin/Baris</span>
+                        <span className="text-[10px] text-slate-400 block">Pins / Row</span>
                         <input
                           type="number"
                           min={1}
@@ -489,7 +580,7 @@ export const Inspector: React.FC = () => {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-slate-200">
-                      Daftar Lane ({config.scene.lanes.length}/4)
+                      Lanes Configuration ({config.scene.lanes.length}/4)
                     </span>
                     <button
                       type="button"
@@ -500,10 +591,10 @@ export const Inspector: React.FC = () => {
                           const idx = p.scene.lanes.length + 1;
                           p.scene.lanes.push({
                             id: `lane_${idx}`,
-                            label: `x2 / LANTAI`,
+                            label: `x2 / FLOOR`,
                             color: "#38bdf8",
-                            initial_balls: 5,
-                            ball_radius: 6,
+                            initial_balls: 3,
+                            ball_radius: 7,
                             on_floor_break: { op: "MULTIPLY", value: 2 }
                           });
                           return p;
@@ -511,7 +602,7 @@ export const Inspector: React.FC = () => {
                       }
                       className="flex items-center gap-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 px-2 py-1 rounded disabled:opacity-40 cursor-pointer"
                     >
-                      <Plus className="w-3 h-3" /> Tambah Lane
+                      <Plus className="w-3 h-3" /> Add Lane
                     </button>
                   </div>
 
@@ -553,7 +644,7 @@ export const Inspector: React.FC = () => {
                               })
                             }
                             className="text-rose-400 hover:text-rose-300 p-1 cursor-pointer"
-                            title="Hapus Lane"
+                            title="Delete Lane"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -562,7 +653,7 @@ export const Inspector: React.FC = () => {
 
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <span className="text-[10px] text-slate-400 block">Bola Awal</span>
+                          <span className="text-[10px] text-slate-400 block">Initial Balls</span>
                           <input
                             type="number"
                             min={1}
@@ -579,7 +670,7 @@ export const Inspector: React.FC = () => {
                           />
                         </div>
                         <div>
-                          <span className="text-[10px] text-slate-400 block">Radius Bola (px)</span>
+                          <span className="text-[10px] text-slate-400 block">Ball Radius (px)</span>
                           <input
                             type="number"
                             min={2}
@@ -599,7 +690,7 @@ export const Inspector: React.FC = () => {
 
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <span className="text-[10px] text-slate-400 block">Aksi Lantai Pecah</span>
+                          <span className="text-[10px] text-slate-400 block">On Floor Break</span>
                           <select
                             value={lane.on_floor_break.op}
                             onChange={(e) =>
@@ -609,22 +700,28 @@ export const Inspector: React.FC = () => {
                                     | "NONE"
                                     | "ADD"
                                     | "MULTIPLY"
+                                    | "FOUNTAIN"
+                                    | "EXPLODE"
                                     | "SCALE_SIZE"
-                                    | "SCALE_SPEED";
+                                    | "SCALE_SPEED"
+                                    | "GRAVITY_PULSE";
                                 return p;
                               })
                             }
-                            className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1"
+                            className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-cyan-300 font-semibold"
                           >
-                            <option value="MULTIPLY">MULTIPLY (×N)</option>
-                            <option value="ADD">ADD (+N)</option>
-                            <option value="SCALE_SIZE">SCALE_SIZE (×Radius)</option>
-                            <option value="SCALE_SPEED">SCALE_SPEED (×Kecepatan)</option>
-                            <option value="NONE">NONE</option>
+                            <option value="FOUNTAIN">FOUNTAIN (Geyser Shower)</option>
+                            <option value="EXPLODE">EXPLODE (Radial Shockwave)</option>
+                            <option value="MULTIPLY">MULTIPLY (× Population)</option>
+                            <option value="ADD">ADD (+ Fixed Balls)</option>
+                            <option value="SCALE_SPEED">SCALE_SPEED (Speed Surge)</option>
+                            <option value="GRAVITY_PULSE">GRAVITY_PULSE (Float Loft)</option>
+                            <option value="SCALE_SIZE">SCALE_SIZE (× Radius)</option>
+                            <option value="NONE">NONE (No Action)</option>
                           </select>
                         </div>
                         <div>
-                          <span className="text-[10px] text-slate-400 block">Nilai Aksi</span>
+                          <span className="text-[10px] text-slate-400 block">Multiplier / Value</span>
                           <input
                             type="number"
                             step="any"
@@ -640,6 +737,85 @@ export const Inspector: React.FC = () => {
                           />
                         </div>
                       </div>
+
+                      {/* Progressive Per-Floor Sequence */}
+                      <div className="pt-1.5 border-t border-slate-800/60">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-400">Progressive Floor Sequence</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateConfig((p) => {
+                                if (p.scene.type !== "TOWER_BREAKER") return p;
+                                const targetLane = p.scene.lanes[idx];
+                                if (targetLane.floor_actions && targetLane.floor_actions.length > 0) {
+                                  delete targetLane.floor_actions;
+                                } else {
+                                  targetLane.floor_actions = [
+                                    { op: "ADD", value: 1 },
+                                    { op: "MULTIPLY", value: 2 },
+                                    { op: "FOUNTAIN", value: 3 },
+                                    { op: "SCALE_SPEED", value: 1.15 },
+                                    { op: "EXPLODE", value: 3 },
+                                    { op: "FOUNTAIN", value: 3 },
+                                    { op: "GRAVITY_PULSE", value: 2.2 },
+                                    { op: "EXPLODE", value: 4 }
+                                  ];
+                                }
+                                return p;
+                              })
+                            }
+                            className="text-cyan-400 hover:text-cyan-300 font-semibold cursor-pointer"
+                          >
+                            {lane.floor_actions && lane.floor_actions.length > 0
+                              ? `Active (${lane.floor_actions.length} Floors)`
+                              : "+ Enable Custom Sequence"}
+                          </button>
+                        </div>
+
+                        {lane.floor_actions && lane.floor_actions.length > 0 && (
+                          <div className="space-y-1 pt-1.5 max-h-36 overflow-y-auto">
+                            {lane.floor_actions.map((fa, fIdx) => (
+                              <div key={fIdx} className="flex items-center gap-1.5 bg-slate-950 px-2 py-1 rounded text-[10px] border border-slate-800">
+                                <span className="font-mono text-cyan-400 w-12 shrink-0">Fl {fIdx + 1}:</span>
+                                <select
+                                  value={fa.op}
+                                  onChange={(e) =>
+                                    updateConfig((p) => {
+                                      if (p.scene.type === "TOWER_BREAKER" && p.scene.lanes[idx].floor_actions) {
+                                        p.scene.lanes[idx].floor_actions![fIdx].op = e.target.value as any;
+                                      }
+                                      return p;
+                                    })
+                                  }
+                                  className="bg-slate-900 border border-slate-800 rounded px-1 py-0.5 text-slate-300 text-[10px] flex-1"
+                                >
+                                  <option value="FOUNTAIN">FOUNTAIN</option>
+                                  <option value="EXPLODE">EXPLODE</option>
+                                  <option value="MULTIPLY">MULTIPLY</option>
+                                  <option value="ADD">ADD</option>
+                                  <option value="SCALE_SPEED">SPEED</option>
+                                  <option value="GRAVITY_PULSE">GRAVITY</option>
+                                </select>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={fa.value}
+                                  onChange={(e) =>
+                                    updateConfig((p) => {
+                                      if (p.scene.type === "TOWER_BREAKER" && p.scene.lanes[idx].floor_actions) {
+                                        p.scene.lanes[idx].floor_actions![fIdx].value = parseFloat(e.target.value) || 1;
+                                      }
+                                      return p;
+                                    })
+                                  }
+                                  className="w-14 bg-slate-900 border border-slate-800 rounded px-1 py-0.5 font-mono text-right text-[10px]"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -651,7 +827,7 @@ export const Inspector: React.FC = () => {
               <div className="space-y-3 pt-2 border-t border-slate-800">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <span className="text-[10px] text-slate-400 block">Bola Awal</span>
+                    <span className="text-[10px] text-slate-400 block">Initial Balls</span>
                     <input
                       type="number"
                       min={1}
@@ -684,7 +860,7 @@ export const Inspector: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 block">Target Lolos</span>
+                    <span className="text-[10px] text-slate-400 block">Escape Target</span>
                     <input
                       type="number"
                       min={1}
@@ -700,7 +876,7 @@ export const Inspector: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 block">Spawn saat Lolos (+N)</span>
+                    <span className="text-[10px] text-slate-400 block">Spawn on Escape (+N)</span>
                     <input
                       type="number"
                       min={0}
@@ -719,7 +895,7 @@ export const Inspector: React.FC = () => {
 
                 <div className="flex items-center justify-between pt-1">
                   <span className="font-semibold text-slate-200">
-                    Cincin Konsentris ({config.scene.rings.length})
+                    Concentric Rings ({config.scene.rings.length})
                   </span>
                   <button
                     type="button"
@@ -739,7 +915,7 @@ export const Inspector: React.FC = () => {
                     }
                     className="flex items-center gap-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 px-2 py-1 rounded cursor-pointer"
                   >
-                    <Plus className="w-3 h-3" /> Tambah Cincin
+                    <Plus className="w-3 h-3" /> Add Ring
                   </button>
                 </div>
 
@@ -747,7 +923,7 @@ export const Inspector: React.FC = () => {
                   {config.scene.rings.map((ring, idx) => (
                     <div key={idx} className="bg-slate-950 p-2 rounded border border-slate-800 space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-cyan-300">Cincin #{idx + 1}</span>
+                        <span className="font-semibold text-cyan-300">Ring #{idx + 1}</span>
                         {config.scene.type === "MAZE_ESCAPE" && config.scene.rings.length > 1 && (
                           <button
                             type="button"
@@ -798,7 +974,7 @@ export const Inspector: React.FC = () => {
                           />
                         </div>
                         <div>
-                          <span className="text-[9px] text-slate-400 block">Celah°</span>
+                          <span className="text-[9px] text-slate-400 block">Gap Angle°</span>
                           <input
                             type="number"
                             value={ring.gap_angle_deg}
@@ -813,7 +989,7 @@ export const Inspector: React.FC = () => {
                           />
                         </div>
                         <div>
-                          <span className="text-[9px] text-slate-400 block">HP Lolos</span>
+                          <span className="text-[9px] text-slate-400 block">Durability</span>
                           <input
                             type="number"
                             min={0}
@@ -839,7 +1015,7 @@ export const Inspector: React.FC = () => {
             {config.scene.type === "ALGORITHM_ARENA" && (
               <div className="space-y-3 pt-2 border-t border-slate-800">
                 <div>
-                  <label className="text-slate-400 block mb-1 font-semibold">Pilih Algoritma</label>
+                  <label className="text-slate-400 block mb-1 font-semibold">Select Algorithm</label>
                   <select
                     value={config.scene.algorithm}
                     onChange={(e) => {
@@ -854,16 +1030,16 @@ export const Inspector: React.FC = () => {
                     }}
                     className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-cyan-400 font-semibold"
                   >
-                    <option value="FALLING_SAND">Falling Sand Alchemist (Lava/Air/Es/Pasir)</option>
-                    <option value="TSP_2OPT">TSP 2-Opt (Benang Kusut → Cincin)</option>
-                    <option value="BFS_LIGHTNING">BFS Wavefront vs Petir (DBM SOR)</option>
-                    <option value="BOIDS">Boids Flock vs Lubang Hitam</option>
+                    <option value="FALLING_SAND">Falling Sand Alchemist (Lava/Water/Ice/Sand)</option>
+                    <option value="TSP_2OPT">TSP 2-Opt (Untangling Tour → Loop)</option>
+                    <option value="BFS_LIGHTNING">BFS Wavefront vs Lightning (DBM SOR)</option>
+                    <option value="BOIDS">Boids Flocking vs Black Hole</option>
                   </select>
                 </div>
 
                 <div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Resolusi Grid Lebar</span>
+                    <span className="text-slate-400">Grid Width Resolution</span>
                     <span className="font-mono text-cyan-400">{config.scene.grid_width}px</span>
                   </div>
                   <input
@@ -908,7 +1084,7 @@ export const Inspector: React.FC = () => {
                 </div>
 
                 <div className="bg-slate-950 p-2.5 rounded border border-slate-800 space-y-2.5">
-                  <span className="font-semibold text-slate-300 block">Parameter Algoritma</span>
+                  <span className="font-semibold text-slate-300 block">Algorithm Parameters</span>
                   {ARENA_PARAM_SPECS[config.scene.algorithm].map((spec) => {
                     const val = config.scene.type === "ALGORITHM_ARENA" ? (config.scene.params[spec.key] ?? spec.default) : spec.default;
                     return (
@@ -975,7 +1151,7 @@ export const Inspector: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <span className="text-[11px] text-slate-400 block">Gravitasi Y (m/s²)</span>
+                <span className="text-[11px] text-slate-400 block">Gravity Y (m/s²)</span>
                 <input
                   type="number"
                   step="0.5"
@@ -993,7 +1169,7 @@ export const Inspector: React.FC = () => {
                 />
               </div>
               <div>
-                <span className="text-[11px] text-slate-400 block">Gravitasi X (m/s²)</span>
+                <span className="text-[11px] text-slate-400 block">Gravity X (m/s²)</span>
                 <input
                   type="number"
                   step="0.5"
@@ -1014,7 +1190,7 @@ export const Inspector: React.FC = () => {
 
             <div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Restitution (Pantulan)</span>
+                <span className="text-slate-400">Restitution (Bounciness)</span>
                 <span className="font-mono text-cyan-400">{config.physics.restitution_default.toFixed(2)}</span>
               </div>
               <input
@@ -1035,7 +1211,7 @@ export const Inspector: React.FC = () => {
 
             <div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Kecepatan Maks (m/s)</span>
+                <span className="text-slate-400">Max Speed (m/s)</span>
                 <span className="font-mono text-cyan-400">{config.physics.max_speed}</span>
               </div>
               <input
@@ -1056,7 +1232,7 @@ export const Inspector: React.FC = () => {
 
             <div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Speed Lock (0 = Nonaktif)</span>
+                <span className="text-slate-400">Speed Lock (0 = Disabled)</span>
                 <span className="font-mono text-cyan-400">{config.physics.speed_lock} m/s</span>
               </div>
               <input
@@ -1077,7 +1253,7 @@ export const Inspector: React.FC = () => {
 
             <div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Substeps Fisika / Frame</span>
+                <span className="text-slate-400">Physics Substeps / Frame</span>
                 <span className="font-mono text-cyan-400">{config.physics.substeps}×</span>
               </div>
               <input
@@ -1096,12 +1272,60 @@ export const Inspector: React.FC = () => {
               />
             </div>
 
+            {/* Air Drag / Viscosity */}
+            <div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Viscosity / Fluid Drag</span>
+                <span className="font-mono text-cyan-400">
+                  {((config.physics.air_drag ?? 0) * 1000).toFixed(1)} mU
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={0.04}
+                step={0.002}
+                value={config.physics.air_drag ?? 0}
+                onChange={(e) =>
+                  updateConfig((p) => ({
+                    ...p,
+                    physics: { ...p.physics, air_drag: parseFloat(e.target.value) }
+                  }))
+                }
+                className="w-full accent-cyan-400 cursor-pointer"
+              />
+            </div>
+
+            {/* Gravity Wave Oscillation */}
+            <div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Gravity Wave Oscillation</span>
+                <span className="font-mono text-cyan-400">
+                  {(config.physics.gravity_oscillation ?? 0).toFixed(1)} rad/s
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={6}
+                step={0.2}
+                value={config.physics.gravity_oscillation ?? 0}
+                onChange={(e) =>
+                  updateConfig((p) => ({
+                    ...p,
+                    physics: { ...p.physics, gravity_oscillation: parseFloat(e.target.value) }
+                  }))
+                }
+                className="w-full accent-cyan-400 cursor-pointer"
+              />
+            </div>
+
             {/* Game Feel Section */}
             <div className="pt-2 border-t border-slate-800 space-y-2.5">
               <span className="font-semibold text-slate-200 block">Tactile Game Feel</span>
 
               <label className="flex items-center justify-between cursor-pointer">
-                <span className="text-slate-300">Hit-Stop saat Lantai Pecah</span>
+                <span className="text-slate-300">Hit-Stop on Floor Break</span>
                 <input
                   type="checkbox"
                   checked={config.feel.hit_stop_on_break}
@@ -1117,7 +1341,7 @@ export const Inspector: React.FC = () => {
 
               <div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Durasi Hit-Stop (Frame)</span>
+                  <span className="text-slate-400">Hit-Stop Duration (Frames)</span>
                   <span className="font-mono text-cyan-400">{config.feel.hit_stop_frames}f</span>
                 </div>
                 <input
@@ -1137,7 +1361,7 @@ export const Inspector: React.FC = () => {
               </div>
 
               <label className="flex items-center justify-between cursor-pointer">
-                <span className="text-slate-300">Squash & Stretch Vektor Kecepatan</span>
+                <span className="text-slate-300">Velocity Vector Squash & Stretch</span>
                 <input
                   type="checkbox"
                   checked={config.feel.squash_stretch}
@@ -1153,7 +1377,7 @@ export const Inspector: React.FC = () => {
 
               <div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Intensitas Screen Shake</span>
+                  <span className="text-slate-400">Screen Shake Intensity</span>
                   <span className="font-mono text-cyan-400">{config.feel.shake_amount}px</span>
                 </div>
                 <input
@@ -1170,6 +1394,11 @@ export const Inspector: React.FC = () => {
                   }
                   className="w-full accent-cyan-400 cursor-pointer"
                 />
+              </div>
+
+              <div className="pt-1.5 flex justify-between items-center text-[11px] text-slate-400 border-t border-slate-800/60">
+                <span>Calm Outro (No Shake/Flash)</span>
+                <span className="font-mono text-cyan-400 font-bold">Last {(config.arc.calm_outro_sec ?? 3.0).toFixed(1)}s</span>
               </div>
             </div>
           </div>
@@ -1188,7 +1417,7 @@ export const Inspector: React.FC = () => {
                   onClick={handleAudition}
                   className="flex items-center gap-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer"
                 >
-                  <Volume2 className="w-3 h-3" /> Tes Bunyi
+                  <Volume2 className="w-3 h-3" /> Preview Sound
                 </button>
               </div>
               <select
@@ -1201,17 +1430,21 @@ export const Inspector: React.FC = () => {
                 }
                 className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-cyan-400 font-semibold"
               >
-                <option value="kalimba_glow">Kalimba Glow (Hangat, Tinkling)</option>
-                <option value="glass_bell">Glass Bell (Jernih, Kristal)</option>
-                <option value="marimba_wood">Marimba Wood (Bulat, Kayu)</option>
-                <option value="thocky_keys">Thocky Keys (Keyboard Mekanik)</option>
-                <option value="water_drop">Water Drop (Tetes Air)</option>
+                <option value="kalimba_glow">Kalimba Glow (Warm, Tinkling)</option>
+                <option value="glass_bell">Glass Bell (Crystal, Pure)</option>
+                <option value="marimba_wood">Marimba Wood (Deep, Woody)</option>
+                <option value="thocky_keys">Thocky Keys (Mechanical Thock)</option>
+                <option value="water_drop">Water Drop (Organic Droplet)</option>
+                <option value="synth_pluck">Synth Pluck (80s Neon Cyberpunk)</option>
+                <option value="music_box">Music Box (Antique Mechanical)</option>
+                <option value="crystal_bowl">Crystal Singing Bowl (432Hz Zen)</option>
+                <option value="cosmic_laser">Cosmic Laser Zap (Sci-Fi Arcade)</option>
               </select>
             </div>
 
             <div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Volume Master</span>
+                <span className="text-slate-400">Master Volume</span>
                 <span className="font-mono text-cyan-400">{Math.round(config.sound.volume * 100)}%</span>
               </div>
               <input
@@ -1232,7 +1465,7 @@ export const Inspector: React.FC = () => {
 
             <div className="grid grid-cols-3 gap-1.5">
               <div>
-                <span className="text-[10px] text-slate-400 block">Root Nada</span>
+                <span className="text-[10px] text-slate-400 block">Root Note</span>
                 <select
                   value={config.sound.scale.root}
                   onChange={(e) =>
@@ -1251,7 +1484,7 @@ export const Inspector: React.FC = () => {
                 </select>
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 block">Mode Skala</span>
+                <span className="text-[10px] text-slate-400 block">Scale Mode</span>
                 <select
                   value={config.sound.scale.mode}
                   onChange={(e) =>
@@ -1271,10 +1504,15 @@ export const Inspector: React.FC = () => {
                   <option value="lydian">Lydian</option>
                   <option value="major">Major</option>
                   <option value="minor">Minor</option>
+                  <option value="hirajoshi">Hirajoshi (Japanese Zen)</option>
+                  <option value="insen">Insen (Traditional Japanese)</option>
+                  <option value="gypsy_minor">Gypsy Minor (Dramatic)</option>
+                  <option value="whole_tone">Whole Tone (Dreamy Surreal)</option>
+                  <option value="blues">Blues (Pentatonic Soul)</option>
                 </select>
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 block">Oktaf</span>
+                <span className="text-[10px] text-slate-400 block">Octaves</span>
                 <input
                   type="number"
                   min={1}
@@ -1295,7 +1533,7 @@ export const Inspector: React.FC = () => {
             </div>
 
             <div>
-              <label className="text-slate-400 block mb-1 font-medium">Pemetaan Pitch Benturan</label>
+              <label className="text-slate-400 block mb-1 font-medium">Collision Pitch Mapping</label>
               <select
                 value={config.sound.note_mapping}
                 onChange={(e) =>
@@ -1306,9 +1544,11 @@ export const Inspector: React.FC = () => {
                 }
                 className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1"
               >
-                <option value="x_position">Posisi X (Kiri Rendah → Kanan Tinggi)</option>
-                <option value="lane_floor">Indeks Lane & Nomor Lantai</option>
-                <option value="random">Variasi Deterministik</option>
+                <option value="melodic_step">Melodic Arpeggio (Harmonic ASMR Rhythms)</option>
+                <option value="floor_level">Floor Depth (Deeper = Higher Pitch)</option>
+                <option value="x_position">Horizontal X Position (Left Low → Right High)</option>
+                <option value="lane_floor">Lane Index & Floor Tier</option>
+                <option value="random">Deterministic Variation</option>
               </select>
             </div>
 
@@ -1380,7 +1620,7 @@ export const Inspector: React.FC = () => {
             {/* Chord on density */}
             <div className="bg-slate-950 p-2.5 rounded border border-slate-800 space-y-2">
               <label className="flex items-center justify-between cursor-pointer">
-                <span className="font-semibold text-slate-300">Chord-dari-Kepadatan</span>
+                <span className="font-semibold text-slate-300">Density-Triggered Chords</span>
                 <input
                   type="checkbox"
                   checked={config.sound.chord_on_density.enabled}
@@ -1420,7 +1660,7 @@ export const Inspector: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block">Jendela (ms)</span>
+                  <span className="text-[10px] text-slate-400 block">Time Window (ms)</span>
                   <input
                     type="number"
                     min={10}
@@ -1463,7 +1703,7 @@ export const Inspector: React.FC = () => {
                 />
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 block">Pitch Escalation / Lantai</span>
+                <span className="text-[10px] text-slate-400 block">Pitch Escalation / Floor</span>
                 <input
                   type="number"
                   step="0.25"
@@ -1503,7 +1743,7 @@ export const Inspector: React.FC = () => {
                 />
               </label>
               <label className="flex items-center justify-between cursor-pointer">
-                <span className="text-slate-300">Filter Low-Pass Vertikal (Y)</span>
+                <span className="text-slate-300">Vertical Low-Pass Filter (Y)</span>
                 <input
                   type="checkbox"
                   checked={config.sound.spatial.y_filter}
@@ -1544,7 +1784,7 @@ export const Inspector: React.FC = () => {
         {activeTab === "look" && (
           <div className="space-y-3.5">
             <div className="flex items-center justify-between">
-              <span className="font-medium text-slate-300">Warna Latar Arena</span>
+              <span className="font-medium text-slate-300">Arena Background Color</span>
               <input
                 type="color"
                 value={config.look.background}
@@ -1555,9 +1795,70 @@ export const Inspector: React.FC = () => {
               />
             </div>
 
+            {/* Background Style */}
+            <div>
+              <span className="text-[11px] text-slate-400 block mb-1">Background Visual Theme</span>
+              <select
+                value={config.look.background_style ?? "solid"}
+                onChange={(e) =>
+                  updateConfig((p) => ({
+                    ...p,
+                    look: { ...p.look, background_style: e.target.value as BackgroundStyle }
+                  }))
+                }
+                className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-cyan-400 font-semibold"
+              >
+                <option value="solid">Solid Hex Color (Minimalist)</option>
+                <option value="radial_vignette">Radial Spotlight Vignette (Studio Focus)</option>
+                <option value="deep_space_stars">Deep Space Stars & Nebula (Cosmic Space)</option>
+                <option value="cyber_grid">Cyber Synthwave Perspective Grid (Retro Neon)</option>
+                <option value="aurora_gradient">Aurora Celestial Gradient (Twilight Skies)</option>
+              </select>
+            </div>
+
+            {/* Ball Style */}
+            <div>
+              <span className="text-[11px] text-slate-400 block mb-1">Ball Visual Style</span>
+              <select
+                value={config.look.ball_style ?? "glow"}
+                onChange={(e) =>
+                  updateConfig((p) => ({
+                    ...p,
+                    look: { ...p.look, ball_style: e.target.value as BallStyle }
+                  }))
+                }
+                className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-cyan-400 font-semibold"
+              >
+                <option value="glow">Radial Neon Bloom Glow (Classic ASMR)</option>
+                <option value="neon_ring">Hollow Neon Ring / Photon (Energy Ring)</option>
+                <option value="shaded_sphere">3D Shaded Marble Sphere (Glass Marble)</option>
+                <option value="sparkle_particle">Sparkle Star / Diamond (Crystal Sparkle)</option>
+              </select>
+            </div>
+
+            {/* Floor Style */}
+            <div>
+              <span className="text-[11px] text-slate-400 block mb-1">Floor Visual Style</span>
+              <select
+                value={config.look.floor_style ?? "solid"}
+                onChange={(e) =>
+                  updateConfig((p) => ({
+                    ...p,
+                    look: { ...p.look, floor_style: e.target.value as FloorStyle }
+                  }))
+                }
+                className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-cyan-400 font-semibold"
+              >
+                <option value="solid">Solid Bar (Standard)</option>
+                <option value="neon_laser">Neon Laser Beam (Laser Shield)</option>
+                <option value="glass_brick">Glass Crystal Bricks (Glass Bricks)</option>
+                <option value="striped_warning">Hazard Warning Stripes (Stripe Pattern)</option>
+              </select>
+            </div>
+
             <div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Radius Glow Bola</span>
+                <span className="text-slate-400">Ball Glow Radius</span>
                 <span className="font-mono text-cyan-400">{config.look.glow.toFixed(1)}×</span>
               </div>
               <input
@@ -1592,7 +1893,7 @@ export const Inspector: React.FC = () => {
               {config.look.bloom.enabled && (
                 <div>
                   <div className="flex justify-between text-[11px]">
-                    <span className="text-slate-400">Intensitas Bloom</span>
+                    <span className="text-slate-400">Bloom Intensity</span>
                     <span className="font-mono text-cyan-300">{config.look.bloom.intensity.toFixed(1)}</span>
                   </div>
                   <input
@@ -1635,7 +1936,7 @@ export const Inspector: React.FC = () => {
               {config.look.trail.enabled && (
                 <div>
                   <div className="flex justify-between text-[11px]">
-                    <span className="text-slate-400">Fade Alpha (Kecil = Ekor Panjang)</span>
+                    <span className="text-slate-400">Fade Alpha (Lower = Longer Trail)</span>
                     <span className="font-mono text-cyan-300">{config.look.trail.fade_alpha.toFixed(2)}</span>
                   </div>
                   <input
@@ -1674,7 +1975,7 @@ export const Inspector: React.FC = () => {
             <label className="flex items-center justify-between cursor-pointer">
               <div>
                 <span className="font-medium text-slate-300 block">Safe Flash Guard</span>
-                <span className="text-[10px] text-slate-500">Maksimal 3 kilatan per detik</span>
+                <span className="text-[10px] text-slate-500">Max 3 screen flashes per second</span>
               </div>
               <input
                 type="checkbox"
@@ -1686,11 +1987,82 @@ export const Inspector: React.FC = () => {
               />
             </label>
 
+            {/* Cinematic Post-Processing FX */}
+            <div className="bg-slate-950 p-2.5 rounded border border-slate-800 space-y-2.5">
+              <span className="font-semibold text-slate-200 block text-[11px]">Cinematic Post-Processing FX</span>
+
+              {/* Chromatic Aberration */}
+              <div>
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-slate-400">Chromatic Aberration (RGB Shift)</span>
+                  <span className="font-mono text-cyan-400">{config.look.chromatic_aberration ?? 0}px</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={14}
+                  step={1}
+                  value={config.look.chromatic_aberration ?? 0}
+                  onChange={(e) =>
+                    updateConfig((p) => ({
+                      ...p,
+                      look: { ...p.look, chromatic_aberration: parseFloat(e.target.value) }
+                    }))
+                  }
+                  className="w-full accent-cyan-400 cursor-pointer"
+                />
+              </div>
+
+              {/* CRT Scanlines */}
+              <div>
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-slate-400">Retro CRT Scanlines</span>
+                  <span className="font-mono text-cyan-400">{Math.round((config.look.scanlines ?? 0) * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={0.8}
+                  step={0.05}
+                  value={config.look.scanlines ?? 0}
+                  onChange={(e) =>
+                    updateConfig((p) => ({
+                      ...p,
+                      look: { ...p.look, scanlines: parseFloat(e.target.value) }
+                    }))
+                  }
+                  className="w-full accent-cyan-400 cursor-pointer"
+                />
+              </div>
+
+              {/* Dark Vignette */}
+              <div>
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-slate-400">Dark Vignette (Cinematic Focus)</span>
+                  <span className="font-mono text-cyan-400">{Math.round((config.look.vignette ?? 0.35) * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={config.look.vignette ?? 0.35}
+                  onChange={(e) =>
+                    updateConfig((p) => ({
+                      ...p,
+                      look: { ...p.look, vignette: parseFloat(e.target.value) }
+                    }))
+                  }
+                  className="w-full accent-cyan-400 cursor-pointer"
+                />
+              </div>
+            </div>
+
             {/* HUD Settings */}
             <div className="pt-2 border-t border-slate-800 space-y-2">
               <span className="font-semibold text-slate-200 block">HUD & Safe Zones</span>
               <label className="flex items-center justify-between cursor-pointer">
-                <span className="text-slate-300">Tampilkan Countdown Timer</span>
+                <span className="text-slate-300">Show Countdown Timer</span>
                 <input
                   type="checkbox"
                   checked={config.look.hud.show_timer}
@@ -1704,7 +2076,7 @@ export const Inspector: React.FC = () => {
                 />
               </label>
               <label className="flex items-center justify-between cursor-pointer">
-                <span className="text-slate-300">Tampilkan Statistik Bawah</span>
+                <span className="text-slate-300">Show Bottom Lane Statistics</span>
                 <input
                   type="checkbox"
                   checked={config.look.hud.show_lane_counts}
@@ -1718,7 +2090,7 @@ export const Inspector: React.FC = () => {
                 />
               </label>
               <label className="flex items-center justify-between cursor-pointer">
-                <span className="text-slate-300">Tampilkan Safe Zone TikTok/Shorts</span>
+                <span className="text-slate-300">Show TikTok / Shorts Safe Zones</span>
                 <input
                   type="checkbox"
                   checked={config.look.hud.show_safe_zones}
@@ -1742,7 +2114,7 @@ export const Inspector: React.FC = () => {
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-2">
               <div className="col-span-2">
-                <span className="text-[10px] text-slate-400 block">Judul Proyek</span>
+                <span className="text-[10px] text-slate-400 block">Project Title</span>
                 <input
                   type="text"
                   value={config.meta.title}
@@ -1753,7 +2125,7 @@ export const Inspector: React.FC = () => {
                 />
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 block">Durasi (dtk)</span>
+                <span className="text-[10px] text-slate-400 block">Duration (sec)</span>
                 <input
                   type="number"
                   min={5}
@@ -1771,7 +2143,7 @@ export const Inspector: React.FC = () => {
             </div>
 
             <div>
-              <label className="text-slate-400 block mb-1 font-medium">Teks Hook Pembuka</label>
+              <label className="text-slate-400 block mb-1 font-medium">Hook Opening Text</label>
               <textarea
                 rows={2}
                 value={config.arc.hook_text}
@@ -1782,9 +2154,9 @@ export const Inspector: React.FC = () => {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <div>
-                <span className="text-[10px] text-slate-400 block">Durasi Teks Hook (0 = Selalu)</span>
+                <span className="text-[10px] text-slate-400 block">Hook Text (s)</span>
                 <input
                   type="number"
                   step="0.5"
@@ -1797,11 +2169,12 @@ export const Inspector: React.FC = () => {
                       arc: { ...p.arc, hook_duration_sec: Math.max(0, parseFloat(e.target.value) || 0) }
                     }))
                   }
+                  title="Duration hook text is displayed (0 = persistent)"
                   className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
                 />
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 block">Loop Outro Cross-Dissolve (dtk)</span>
+                <span className="text-[10px] text-slate-400 block">Loop Dissolve (s)</span>
                 <input
                   type="number"
                   step="0.1"
@@ -1814,7 +2187,26 @@ export const Inspector: React.FC = () => {
                       arc: { ...p.arc, loop_outro_sec: Math.max(0, Math.min(3, parseFloat(e.target.value) || 0)) }
                     }))
                   }
+                  title="Cross-dissolve duration into initial frame"
                   className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                />
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block">Calm Outro (s)</span>
+                <input
+                  type="number"
+                  step="0.5"
+                  min={0}
+                  max={10}
+                  value={config.arc.calm_outro_sec ?? 3.0}
+                  onChange={(e) =>
+                    updateConfig((p) => ({
+                      ...p,
+                      arc: { ...p.arc, calm_outro_sec: Math.max(0, Math.min(10, parseFloat(e.target.value) || 0)) }
+                    }))
+                  }
+                  title="Disable screen shake, flashes, and hit-stops in the final seconds for a smooth outro"
+                  className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono text-cyan-300 font-bold"
                 />
               </div>
             </div>
@@ -1832,13 +2224,13 @@ export const Inspector: React.FC = () => {
                   onClick={addRule}
                   className="flex items-center gap-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 px-2 py-1 rounded cursor-pointer"
                 >
-                  <Plus className="w-3 h-3" /> Tambah Rule
+                  <Plus className="w-3 h-3" /> Add Rule
                 </button>
               </div>
 
               {config.rules.length === 0 && (
                 <p className="text-[11px] text-slate-500 italic">
-                  Belum ada rule tambahan. Klik &ldquo;Tambah Rule&rdquo; untuk membuat aturan Trigger → Action.
+                  No custom rules yet. Click &ldquo;Add Rule&rdquo; to build Trigger → Action logic.
                 </p>
               )}
 
@@ -1927,7 +2319,7 @@ export const Inspector: React.FC = () => {
                           }
                           className="w-full bg-slate-900 border border-slate-800 rounded px-1.5 py-1 text-[11px]"
                         >
-                          <option value="SPAWN">SPAWN (+Bola)</option>
+                          <option value="SPAWN">SPAWN (+Balls)</option>
                           <option value="SCALE_BALL">SCALE_BALL</option>
                           <option value="ROTATE_ARENA">ROTATE_ARENA</option>
                           <option value="DAMAGE_WALL">DAMAGE_WALL</option>
@@ -1937,7 +2329,7 @@ export const Inspector: React.FC = () => {
                         </select>
                       </div>
                       <div>
-                        <span className="text-[9px] text-slate-400 block">Jumlah / Nilai</span>
+                        <span className="text-[9px] text-slate-400 block">Count / Value</span>
                         <input
                           type="number"
                           step="any"
@@ -1972,7 +2364,7 @@ export const Inspector: React.FC = () => {
                 <Sparkles className="w-4 h-4" /> Seed Scout (Climax Finder)
               </div>
               <p className="text-[11px] text-slate-400">
-                Uji banyak kandidat seed secara headless untuk memilih yang klimaksnya paling dramatis.
+                Headless search through seed candidates to find the most dramatic climax.
               </p>
               <div className="grid grid-cols-3 gap-1.5">
                 {[8, 16, 32].map((cnt) => (
@@ -2004,12 +2396,12 @@ export const Inspector: React.FC = () => {
                           #{i + 1} Seed {res.seed}
                         </div>
                         <div className="text-[10px] text-slate-400">
-                          Unggul: {res.winnerLabel} • Hits: {res.totalHits.toLocaleString()}
+                          Leader: {res.winnerLabel} • Hits: {res.totalHits.toLocaleString()}
                         </div>
                       </div>
                       <div className="text-right">
                         <div className="text-xs font-bold text-emerald-400">{res.climaxScore.toFixed(2)}</div>
-                        <span className="text-[9px] text-slate-500">Skor Klimaks</span>
+                        <span className="text-[9px] text-slate-500">Climax Score</span>
                       </div>
                     </div>
                   ))}
@@ -2022,7 +2414,7 @@ export const Inspector: React.FC = () => {
               <span className="font-semibold text-slate-200 block">Render MP4 (1080×1920 @ {config.meta.fps} FPS)</span>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <span className="text-[10px] text-slate-400 block">Bitrate Video (Mbps)</span>
+                  <span className="text-[10px] text-slate-400 block">Video Bitrate (Mbps)</span>
                   <input
                     type="number"
                     min={4}
@@ -2038,7 +2430,7 @@ export const Inspector: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block">FPS Output</span>
+                  <span className="text-[10px] text-slate-400 block">Output FPS</span>
                   <select
                     value={config.meta.fps}
                     onChange={(e) =>
@@ -2076,9 +2468,22 @@ export const Inspector: React.FC = () => {
                       onClick={() => abortRef.current?.abort()}
                       className="text-rose-400 hover:underline font-semibold cursor-pointer"
                     >
-                      Batalkan
+                      Cancel
                     </button>
                   </div>
+                </div>
+              )}
+
+              {exportError && (
+                <div className="bg-rose-950/70 border border-rose-500/50 p-2.5 rounded-lg text-rose-300 text-xs space-y-1">
+                  <div className="font-bold flex items-center gap-1.5 text-rose-200">
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                    <span>Export Failed</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-rose-300/90 break-words font-mono">{exportError}</p>
+                  <p className="text-[10px] text-rose-400/80 leading-tight">
+                    Tip: Ensure you are using the latest Google Chrome or Microsoft Edge with Hardware Acceleration enabled.
+                  </p>
                 </div>
               )}
 
@@ -2088,7 +2493,7 @@ export const Inspector: React.FC = () => {
                 className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 py-2.5 rounded-lg font-bold text-white shadow-lg shadow-emerald-900/30 flex items-center justify-center gap-2 disabled:opacity-50 transition-all cursor-pointer"
               >
                 <Download className="w-4 h-4" />
-                {isExporting ? "Merender MP4..." : "Export MP4 (1080×1920)"}
+                {isExporting ? "Rendering MP4..." : "Export MP4 (1080×1920)"}
               </button>
             </div>
 
@@ -2103,12 +2508,12 @@ export const Inspector: React.FC = () => {
                   onClick={handleExportJson}
                   className="bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded text-[11px] text-cyan-300 cursor-pointer"
                 >
-                  Unduh .JSON
+                  Download .JSON
                 </button>
               </div>
               <textarea
                 rows={4}
-                placeholder="Tempel JSON ProjectConfig di sini untuk impor..."
+                placeholder="Paste ProjectConfig JSON here to import..."
                 value={jsonText}
                 onChange={(e) => setJsonText(e.target.value)}
                 className="w-full bg-slate-900 border border-slate-800 rounded p-2 font-mono text-[10px] text-slate-300"
@@ -2118,11 +2523,11 @@ export const Inspector: React.FC = () => {
                   type="button"
                   onClick={() => {
                     const res = importJsonConfig(jsonText);
-                    setJsonMsg(res.ok ? "Konfigurasi berhasil dimuat!" : `Error: ${res.error}`);
+                    setJsonMsg(res.ok ? "Configuration loaded successfully!" : `Error: ${res.error}`);
                   }}
                   className="flex items-center gap-1 bg-cyan-600 hover:bg-cyan-500 text-white px-2.5 py-1 rounded font-semibold cursor-pointer"
                 >
-                  <Upload className="w-3 h-3" /> Terapkan JSON
+                  <Upload className="w-3 h-3" /> Apply JSON
                 </button>
                 {jsonMsg && <span className="text-[10px] text-emerald-400 truncate max-w-[180px]">{jsonMsg}</span>}
               </div>

@@ -203,6 +203,15 @@ export class TowerScene implements Scene {
     this.flashAmt *= 0.8;
     this.shakeAmt *= 0.85;
 
+    const calmOutroSec = ctx.config.arc.calm_outro_sec ?? 3.0;
+    const remainingSec = Math.max(0, ctx.config.meta.duration_sec - timeSec);
+    const inCalmOutro = calmOutroSec > 0 && remainingSec <= calmOutroSec;
+    if (inCalmOutro) {
+      this.stopFrames = 0;
+      this.shakeAmt = 0;
+      this.flashAmt = 0;
+    }
+
     this.rawN = 0;
 
     if (this.stopFrames > 0) {
@@ -215,8 +224,13 @@ export class TowerScene implements Scene {
 
     const sub = phys.substeps;
     const sdt = dt / sub;
-    const gx = this.gx * sdt;
-    const gy = this.gy * sdt;
+    const osc = phys.gravity_oscillation ?? 0;
+    const curGx = osc > 0 ? this.gx * Math.cos(timeSec * osc) : this.gx;
+    const curGy = osc > 0 ? this.gy * (0.85 + 0.15 * Math.sin(timeSec * osc)) : this.gy;
+    const gx = curGx * sdt;
+    const gy = curGy * sdt;
+    const drag = phys.air_drag ?? 0;
+    const dragDamp = drag > 0 ? Math.max(0, 1 - drag * sdt * 60) : 1;
     const maxV = phys.max_speed * this.ppm;
     const maxV2 = maxV * maxV;
     const lock = phys.speed_lock * this.ppm;
@@ -247,8 +261,8 @@ export class TowerScene implements Scene {
     for (let s = 0; s < sub; s++) {
       const n = pool.count;
       for (let i = 0; i < n; i++) {
-        let vx = pvx[i] + gx;
-        let vy = pvy[i] + gy;
+        let vx = (pvx[i] + gx) * dragDamp;
+        let vy = (pvy[i] + gy) * dragDamp;
         let sp2 = vx * vx + vy * vy;
         if (lock > 0 && sp2 > 1e-6) {
           const k = lock / Math.sqrt(sp2);
@@ -369,37 +383,116 @@ export class TowerScene implements Scene {
       n: 1
     });
     ctx.ruleEvent("ON_FLOOR_BREAK", l, fl.index);
-    if (ctx.config.feel.hit_stop_on_break) this.stopFrames = Math.max(this.stopFrames, ctx.config.feel.hit_stop_frames);
-    if (ctx.config.feel.flash_on_break) this.flashAmt = Math.max(this.flashAmt, 0.55);
+    const calmOutroSec = ctx.config.arc.calm_outro_sec ?? 3.0;
+    const remainingSec = Math.max(0, ctx.config.meta.duration_sec - this.frame * ctx.dt);
+    const inCalmOutro = calmOutroSec > 0 && remainingSec <= calmOutroSec;
+
+    if (!inCalmOutro) {
+      if (ctx.config.feel.hit_stop_on_break) this.stopFrames = Math.max(this.stopFrames, ctx.config.feel.hit_stop_frames);
+      if (ctx.config.feel.flash_on_break) this.flashAmt = Math.max(this.flashAmt, 0.55);
+    }
 
     if (this.laneCur[l] >= this.laneFloorCount[l] && this.winner < 0) {
       this.winner = l;
       this.winnerFrame = this.frame;
-      this.flashAmt = 1;
-      this.shakeAmt = 1;
+      if (!inCalmOutro) {
+        this.flashAmt = 1;
+        this.shakeAmt = 1;
+      }
     }
 
     const lane = cfg.lanes[l];
-    const act = lane.on_floor_break;
+    const floorIdx = fl.index;
+    const act = (lane.floor_actions && lane.floor_actions[floorIdx]) 
+      ? lane.floor_actions[floorIdx] 
+      : lane.on_floor_break;
     const cx = (this.laneX0[l] + this.laneX1[l]) / 2;
     const y = fl.y - 80;
+
     switch (act.op) {
       case "MULTIPLY":
-        this.spawnLane(l, Math.floor(ctx.gov.virtual[l] * (act.value - 1)), y);
+        this.spawnLane(l, Math.floor(ctx.gov.virtual[l] * Math.max(0, act.value - 1)), y);
         break;
       case "ADD":
-        this.spawnLane(l, act.value, y);
+        this.spawnLane(l, Math.max(1, Math.round(act.value)), y);
         break;
+      case "FOUNTAIN": {
+        const count = act.value > 1 
+          ? Math.floor(ctx.gov.virtual[l] * (act.value - 1)) 
+          : Math.max(1, Math.round(act.value * 6));
+        this.spawnFountain(l, count, y);
+        break;
+      }
+      case "EXPLODE": {
+        const count = act.value > 1 
+          ? Math.floor(ctx.gov.virtual[l] * (act.value - 1)) 
+          : Math.max(1, Math.round(act.value * 6));
+        this.spawnFountain(l, count, y);
+        this.explodeBlast(l, cx, fl.y, 400);
+        break;
+      }
       case "SCALE_SIZE":
         this.scaleLaneSize(l, act.value);
         break;
       case "SCALE_SPEED":
         this.scaleLaneSpeed(l, act.value);
         break;
+      case "GRAVITY_PULSE": {
+        const count = Math.max(1, Math.round(ctx.gov.virtual[l] * 0.5));
+        this.spawnFountain(l, count, y);
+        this.pulseGravity(l, act.value);
+        break;
+      }
       default:
         break;
     }
     void cx;
+  }
+
+  private spawnFountain(l: number, count: number, atY: number): void {
+    const { ctx, cfg } = this;
+    const lane = cfg.lanes[l];
+    const rng = ctx.rng.physics;
+    const cx = (this.laneX0[l] + this.laneX1[l]) / 2;
+    const span = (this.laneX1[l] - this.laneX0[l]) * 0.42;
+    const sp = Math.max(16, cfg.spawn_speed * 3.5) * this.ppm;
+    const y0 = atY >= 0 ? atY : ARENA_H * 0.05;
+    const baseR = lane.ball_radius * this.laneRadiusScale[l];
+    ctx.gov.spawn(ctx.pool, l, count, baseR, (i, out) => {
+      out[0] = cx + (rng() * 2 - 1) * span;
+      out[1] = y0 + (rng() * 2 - 1) * 20;
+      // High upward fountain geyser fan
+      const angle = -Math.PI * 0.5 + (rng() * 2 - 1) * 0.55;
+      const velocity = sp * (0.8 + 0.5 * rng());
+      out[2] = Math.cos(angle) * velocity;
+      out[3] = Math.sin(angle) * velocity;
+    });
+  }
+
+  private explodeBlast(l: number, cx: number, cy: number, impulse: number): void {
+    const pool = this.ctx.pool;
+    const rng = this.ctx.rng.physics;
+    for (let i = 0; i < pool.count; i++) {
+      if (pool.lane[i] !== l) continue;
+      const dx = pool.x[i] - cx;
+      const dy = pool.y[i] - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy) + 1e-4;
+      const force = Math.min(impulse, (impulse * 280) / dist);
+      pool.vx[i] += (dx / dist) * force + (rng() * 2 - 1) * 60;
+      pool.vy[i] += (dy / dist) * force - Math.abs(rng()) * 120;
+    }
+  }
+
+  private pulseGravity(l: number, lift: number): void {
+    const pool = this.ctx.pool;
+    const rng = this.ctx.rng.physics;
+    const upwardSpeed = Math.max(100, lift * 150);
+    for (let i = 0; i < pool.count; i++) {
+      if (pool.lane[i] === l) {
+        pool.vy[i] = -upwardSpeed * (0.7 + 0.6 * rng());
+        pool.vx[i] += (rng() * 2 - 1) * 80;
+      }
+    }
   }
 
   private scaleLaneSize(l: number, f: number): void {
@@ -428,7 +521,7 @@ export class TowerScene implements Scene {
 
   /** Reduce thousands of raw impacts to the K strongest per lane/kind and emit them. */
   private flushRaw(timeSec: number, dt: number, sub: number): void {
-    const K = this.ctx.config.sound.max_events_per_frame;
+    const K = Math.max(8, this.ctx.config.sound.max_events_per_frame);
     const L = this.L;
     // [lane][kindIdx] -> indices of top K
     for (let l = 0; l < L; l++) {
@@ -501,12 +594,22 @@ export class TowerScene implements Scene {
         }
         break;
       }
-      case "SHAKE":
-        this.shakeAmt = Math.max(this.shakeAmt, action.value ?? 1);
+      case "SHAKE": {
+        const calmOutroSec = ctx.config.arc.calm_outro_sec ?? 3.0;
+        const remainingSec = Math.max(0, ctx.config.meta.duration_sec - this.frame * ctx.dt);
+        if (calmOutroSec <= 0 || remainingSec > calmOutroSec) {
+          this.shakeAmt = Math.max(this.shakeAmt, action.value ?? 1);
+        }
         break;
-      case "FLASH":
-        this.flashAmt = Math.max(this.flashAmt, action.value ?? 1);
+      }
+      case "FLASH": {
+        const calmOutroSec = ctx.config.arc.calm_outro_sec ?? 3.0;
+        const remainingSec = Math.max(0, ctx.config.meta.duration_sec - this.frame * ctx.dt);
+        if (calmOutroSec <= 0 || remainingSec > calmOutroSec) {
+          this.flashAmt = Math.max(this.flashAmt, action.value ?? 1);
+        }
         break;
+      }
       default:
         break;
     }

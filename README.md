@@ -12,9 +12,9 @@
 
 ---
 
-## Ringkasan Proyek (Overview)
+## Project Overview
 
-**ASMR Video Studio v2.0** dirancang untuk kreator konten edukasi sains, algoritma, dan simulator fisika santai (*oddly satisfying*). Seluruh proses—mulai dari simulasi partikel, sintesis gelombang audio, rendering grafis, hingga encoding kontainer video MP4—dieksekusi secara **100% lokal di browser pengguna** tanpa memerlukan server backend atau GPU eksternal.
+**ASMR Video Studio v2.0** is designed for creators of science education, algorithms, and oddly satisfying physics simulation content. The entire pipeline—particle simulation, acoustic audio waveform synthesis, graphics rendering, and MP4 container multiplexing—is executed **100% locally in the user's browser** without requiring any backend servers or external GPU compute.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────┐
@@ -23,12 +23,12 @@
 │  [ UI Studio (React 18 + Zustand) ]                                            │
 │        │                                                                       │
 │        ▼                                                                       │
-│  [ @asmr/schema ] ── Zod v3 Config ── 7 Presets ── Monotone Tension Curve      │
+│  [ @asmr/schema ] ── Zod v3 Config ── 20 Presets ── Monotone Tension Curve     │
 │        │                                                                       │
 │        ├───────────────────────────────────┬───────────────────────────────────┤
 │        ▼                                   ▼                                   ▼
 │  [ @asmr/sim-core ]                [ @asmr/audio-core ]              [ @asmr/render-core ]
-│  • Structure-of-Arrays (SoA)       • 5 Modal Synth Palettes          • Canvas 2D Stage
+│  • Structure-of-Arrays (SoA)       • 9 Modal Synth Palettes          • Canvas 2D Stage
 │  • Tower Breaker (Lanes/Pegs/HP)   • Scales & Chord Triads           • Cached Radial Glow
 │  • Maze Escape (Rotating Rings)    • Spatial Pan & Y Lowpass         • Additive Bloom Pass
 │  • 4 Algorithm Arena Modes         • Tension Bass Drone              • Safe Flash Guard
@@ -46,135 +46,142 @@
 
 ---
 
-## Fitur Unggulan
+## Core Features
 
-### 1. Tiga Mode Scene + 7 Preset Bawaan
+### 1. Three Scene Modes + 20 Viral Built-in Presets (4 Categories)
 
-| Mode Scene | Deskripsi | Preset Bawaan |
+| Category | Featured Presets | Highlights & Signature Experience |
 |---|---|---|
-| **Tower Breaker** | Pertarungan multi-lane memecahkan tumpukan lantai ber-HP (Manual Array atau Rumus Eksponensial), pin rintangan dinamis (*pegs*), hit-stop, sudden-death damage scaling, dan aksi lantai pecah (`MULTIPLY`, `ADD`, `SCALE_SIZE`, `SCALE_SPEED`). | `3 Towers - 60s`<br>`Duel 2 Lanes - 45s` |
-| **Maze Escape** | Cincin konsentris berputar dengan sudut celah (*gap angle*), ketahanan cincin (*durability*), transfer kecepatan sudut tangensial, dan penghitung target bola lolos. | `5 Cincin Maze - 60s` |
-| **Algorithm Arena** | Empat visualisasi algoritma sains & komputasi komputer yang berpacu secara visual dan menghasilkan nada prosedural yang sinkron. | `Falling Sand Alchemist`<br>`TSP 2-Opt`<br>`BFS vs Petir`<br>`Boids vs Lubang Hitam` |
+| **Satisfying & ASMR** | `One Ball to 1,000,000 (60s Journey)`<br>`Zen Droplet Symphony (60s ASMR)`<br>`Galton Board Bell Curve`<br>`Japanese Zen Water`<br>`Antique Music Box`<br>`Tibetan Crystal Bowl`<br>`3 Towers Classic` | **Starts with 1 solitary ball and finishes at 60s**: 8-floor calibrated pacing with fountain geyser showers, explosive shockwaves, and pure meditative water droplets chiming along traditional scales. |
+| **High Tension & Battle** | `The 60s Solitary Duel: Red vs Blue`<br>`Mechanical Pachinko 1-Ball Avalanche`<br>`Cyberpunk 4-Way Overdrive`<br>`Duel 2 Lanes Extreme`<br>`Mechanical Pachinko Frenzy`<br>`Speedrun 25 Floors` | **1 vs 1 solitary ball race to floor 8 at 60s**: Red fountain vs Blue shockwave photo-finish, 1-ball pachinko avalanches with 10,000 thock keyboard clicks, and 4-faction synthwave wars. |
+| **Sci-Fi & Cosmic** | `Black Hole Singularity Orbit`<br>`5 Cincin Maze Escape`<br>`Cosmic Laser Superstorm` | 8 concentric rings orbiting against a gravitational black hole singularity, tangential angular velocity escapes, and arcade laser zap swarm dynamics. |
+| **Algorithm & Arena** | `Falling Sand Alchemist`<br>`TSP 2-Opt Untangling`<br>`BFS vs Fractal Lightning`<br>`Boids vs Black Hole` | Four interactive scientific computing and cellular automata pixel arenas synchronized to procedurally generated acoustic scales. |
 
-#### Visualiser Algorithm Arena:
-1. **Falling Sand Alchemist**: Automata seluler kisi piksel interaktif simulasi partikel Pasir, Air, Lava, Es, Uap, Obsidian, dan Kaca lengkap dengan transfer panas dan reaksi kimia eksotermik.
-2. **TSP 2-Opt (Untangling Tour)**: Penyelesaian masalah *Traveling Salesperson Problem* secara real-time; benang kusut yang awalnya ruwet terurai menjadi cincin lingkaran berurutan optimal.
-3. **BFS vs Petir (Dielectric Breakdown Model)**: Pertarungan kecepatan antara algoritma Breadth-First Search (BFS) eksplorasi seragam melawan fraktal petir Laplace DBM acak.
-4. **Boids vs Lubang Hitam**: Ribuan partikel boids kawanan (*Flocking Reynolds*) dengan gaya separasi, kohesi, dan alignment yang berjuang meloloskan diri dari tarikan singularitas *event horizon*.
-
----
-
-### 2. Mesin Fisika Zero-Allocation & 100% Deterministik
-
-- **Bebas Alokasi Memori di Hot-Loop**: Seluruh entitas bola dikelola menggunakan Structure-of-Arrays (SoA) berbasis `Float64Array`, `Float32Array`, `Uint8Array`, dan `Uint16Array` ([`BallPool.ts`](file:///packages/sim-core/src/engine/BallPool.ts)). Tidak ada garbage collection (GC pause) saat simulasi berlangsung.
-- **Performa Ekstrem**: 600 frame simulasi analitik 3.000 bola selesai dalam waktu **< 60 ms** (< 0.1 ms per frame), menjamin 60 FPS stabil di browser perangkat standar.
-- **Population Governor**: Memisahkan populasi visual di HUD yang bisa mencapai **jutaan bola** dari batas fisik (*physical cap* <= 3000 bola aktif), mempertahankan fluiditas visual tanpa lagging.
-- **Determinisme Lintas Mesin**: Generator bilangan acak berbasis `SFC32` dengan state hash `FNV-1a 32-bit`. Seed yang sama selalu menghasilkan gerakan, tumbukan, dan not musik yang persis sama di semua sistem operasi.
+#### Algorithm Arena Visualizers:
+1. **Falling Sand Alchemist**: Interactive pixel-grid cellular automata simulating Sand, Water, Lava, Ice, Steam, Obsidian, and Glass particles complete with exothermic heat transfer and state transitions.
+2. **TSP 2-Opt (Untangling Tour)**: Real-time heuristic optimization of the Traveling Salesperson Problem; entangled route loops untangle into a sleek, optimal geometric ring tour.
+3. **BFS vs Lightning (Dielectric Breakdown Model)**: High-stakes speed contest between uniform Breadth-First Search wavefront expansion and stochastic Laplacian DBM fractal lightning bolts.
+4. **Boids vs Black Hole**: Thousands of flocking boid agents governed by Reynolds separation, cohesion, and alignment struggling to break free from the event horizon gravitational well.
 
 ---
 
-### 3. Sintesis Audio Prosedural ASMR (`@asmr/audio-core`)
+### 2. Zero-Allocation & 100% Deterministic Physics Engine
 
-- **5 Palet Instrumen Modal**:
-  - `kalimba_glow`: Nada kalimba hangat dan resonan dengan peluruhan ganda.
-  - `glass_bell`: Denting kristal jernih dengan harmonik lonceng panjang.
-  - `marimba_wood`: Ketukan kayu marimba bulat dan renyah.
-  - `thocky_keys`: Suara keyboard mekanikal *thock* dengan redaman transien empuk.
-  - `water_drop`: Tetesan air gelembung dengan modulasi pitch eksponensial.
-- **Live Audition**: Tombol *Tes Bunyi* interaktif pada Inspector untuk mendengarkan palet instrumen sebelum merender.
-- **Musical Quantizer**: Pilihan mode `FREE`, `HARMONIC` (mengikuti progresi akor angka Romawi), dan `GRID` (sinkronisasi ketukan 1/16 note).
-- **Chord-on-Density**: Mengelompokkan tumbukan bola yang rapat menjadi akor triad yang harmonis alih-alih suara berisik.
-- **Rantai Efek DSP**:
-  - *Constant-Power Stereo Panning* (mengikuti koordinat X).
-  - *Y-Axis 1-Pole Low-Pass Filter* (posisi atas terdengar terang, posisi bawah terdengar hangat).
-  - *Tension Sub-Bass Drone* (mengikuti kurva tensi video).
-  - *Schroeder Stereo Reverb* (comb & all-pass filter network).
-  - *Lookahead Peak Limiter* (-1 dBFS ceiling anti-clipping).
+- **Zero Memory Allocation in Hot-Loops**: Ball entities are managed using Structure-of-Arrays (SoA) layout with typed arrays (`Float64Array`, `Float32Array`, `Uint8Array`, and `Uint16Array`) ([`BallPool.ts`](file:///packages/sim-core/src/engine/BallPool.ts)). Zero garbage collection pauses during live simulation.
+- **Extreme Performance**: 600 analytical simulation frames of 3,000 balls finish in **< 60 ms** (< 0.1 ms per frame), guaranteeing rock-solid 60 FPS in standard browser environments.
+- **Population Governor**: Decouples visual HUD populations (which can reach **millions of balls**) from the physical active collision pool (capped at <= 3,000 physical bodies), maintaining fluid performance without lag.
+- **Cross-Platform Determinism**: `SFC32` pseudorandom number generator with 32-bit `FNV-1a` state hashing. Identical seeds yield byte-for-byte identical motion vectors, collision points, and musical notes across all operating systems.
 
 ---
 
-### 4. Studio UI & Inspector Kustomisasi (6 Tab)
+### 3. Procedural Physical ASMR Audio Synthesis (`@asmr/audio-core`)
 
-- **Scene**: Konfigurasi lane (tambah/hapus, warna, label, bola awal, radius, aksi lantai pecah), formula HP lantai (Array Manual vs Eksponensial), pin rintangan (pegs), cincin maze, atau parameter khusus algoritma.
-- **Fisika**: Gravitasi X/Y, restitusi (pantulan), speed lock, substep integrasi numerik, hit-stop, screen shake, dan safe flash guard.
-- **Suara**: Pemilihan palet instrumen, nada dasar (*root note* C1-B8), skala nada (pentatonic, dorian, lydian, mayor, minor), volume, reverb, dan cutoff filter.
-- **Visual**: Tema latar, ketebalan glow, intensitas bloom pass, trail fade, pitch-to-hue synesthesia (warna bola berubah sesuai tinggi nada), HUD toggle, dan safe zone overlay.
-- **Arc/Rule**:
-  - **Interactive SVG Tension Curve Editor**: Drag titik kurva tensi secara bebas (tambah/hapus titik) dengan interpolasi smoothstep C1.
-  - **Declarative Rule Engine**: Buat aturan kausal kustom (*Trigger: ON_FLOOR_BREAK / ON_TIMER / ON_COUNT_REACHED / ON_BEAT* $\rightarrow$ *Guard: max_fires, cooldown, depth_limit* $\rightarrow$ *Action: MULTIPLY, ADD, SHAKE, FLASH, SHIFT_PITCH*).
+- **Direct Physical Bounce Acoustic Excitation**: Sounds are directly triggered by ball collision events against floors, pegs, rings, and walls. Volume dynamics scale with collision momentum ($0.28 + 0.72 \cdot v^{0.75}$) so high-speed slams deliver rich, explosive impact while gentle grazing taps produce delicate acoustic clicks.
+- **9 Modal Resonator Palettes**:
+  - `kalimba_glow`: Warm, resonant dual-decay metallic kalimba tines.
+  - `glass_bell`: Crystalline bell tones with extended bell-strike harmonics.
+  - `marimba_wood`: Deep, rounded rosewood marimba bar strikes.
+  - `thocky_keys`: Lubed mechanical keyboard keypresses with soft transient damping.
+  - `water_drop`: Organic bubble water drops with exponential pitch modulations.
+  - `synth_pluck`: Punchy 80s Cyberpunk analog synth plucks.
+  - `music_box`: Nostalgic mechanical pinned cylinder music box chimes.
+  - `crystal_bowl`: Pure 432 Hz quartz singing bowl healing resonance.
+  - `cosmic_laser`: Fast arcade sci-fi laser frequency sweeps.
+- **11 Musical Scale Modes**: Pentatonic Major, Pentatonic Minor, Dorian, Lydian, Major, Minor, **Hirajoshi** (Japanese Zen), **Insen** (Traditional Japanese), **Gypsy Minor** (Dramatic), **Whole Tone** (Surreal Dream), and **Blues**.
+- **Live Audition**: Interactive *Preview Sound* button on the Inspector to test instrument palettes before exporting.
+- **Musical Quantizer**: Select between `FREE` (pure physical timing), `HARMONIC` (mapped to Roman numeral chord progressions), and `GRID` (1/16th note musical quantization).
+- **Density-Triggered Chords**: Dynamically collapses dense multi-ball collision clusters into harmonious musical triads.
+- **DSP Effect Chain**:
+  - *Constant-Power Stereo Panning* (mapped to the horizontal X impact coordinate).
+  - *Vertical 1-Pole Low-Pass Filter* (upper collisions sound bright and airy; lower collisions sound warm and filtered).
+  - *Tension Sub-Bass Drone* (modulates with the dramatic narrative tension curve).
+  - *Schroeder Stereo Reverb* (comb & all-pass feedback network).
+  - *Lookahead Peak Limiter* (-1 dBFS true-peak anti-clipping ceiling).
+
+---
+
+### 4. Studio UI & Deep Inspector Customization (6 Tabs)
+
+- **Scene**: Preset gallery with 16 templates and category filters (Satisfying & ASMR, High Tension, Sci-Fi, Arena), lane management (add/remove, hex colors, custom labels, initial balls, radii, floor break actions), floor HP formulas (Manual Array vs Exponential), obstacle pins (pegs), maze rings, or algorithm arena parameters.
+- **Physics**: X/Y Gravity, fluid drag viscosity, gravity wave oscillation, restitution elasticity, speed lock, numerical integration substeps, hit-stop freeze frames, screen shake, and WCAG-compliant safe flash guards.
+- **Sound**: 9 modal synthesizers, 11 musical scales, root notes (C1 to B8), master volume, reverb, escalation, and collision pitch mapping options.
+- **Look**: 5 background visual themes (Solid, Radial Spotlight, Deep Space Nebula, Cyber Grid, Aurora Gradient), 4 ball styles (Neon Glow, Energy Ring, Glass Marble, Crystal Sparkle), 4 floor styles (Solid Bar, Neon Laser, Glass Bricks, Warning Stripes), Cinematic FX (Chromatic Aberration, CRT Scanlines, Dark Vignette), bloom pass, and HUD overlays.
+- **Arc/Rules**:
+  - **Interactive SVG Tension Curve Editor**: Drag keyframes with C1 smoothstep interpolation to shape narrative pacing.
+  - **Declarative Rule Engine**: Construct custom event triggers (*Trigger: ON_FLOOR_BREAK / ON_TIMER / ON_COUNT_REACHED / ON_BEAT* $\rightarrow$ *Action: SPAWN, SCALE_BALL, ROTATE_ARENA, DAMAGE_WALL, SHIFT_PITCH, SHAKE, FLASH*).
 - **Export**:
-  - **Seed Scout (Climax Finder)**: Evaluasi puluhan kandidat seed secara instan (*headless*) untuk menemukan seed dengan skor tensi dan dramatisasi tertinggi.
-  - **Two-Pass MP4 Exporter**: Ekspor video 1080×1920 60 FPS langsung ke file `.mp4` siap unggah.
-  - **Manajemen Preset**: Simpan preset kustom ke LocalStorage serta Import/Export format `.json`.
-  - **Undo / Redo Penuh**: Riwayat perubahan tak terbatas (`Ctrl+Z` / `Ctrl+Y`).
+  - **Seed Scout (Climax Finder)**: Headless simulation across candidate seeds to automatically surface the seed with the highest dramatic climax score.
+  - **Two-Pass MP4 Exporter**: Client-side hardware-accelerated 1080×1920 60 FPS MP4 export with WebCodecs H.264 & AAC.
+  - **Preset Management**: Save custom presets to LocalStorage and import/export `.json` configurations.
+  - **Full Undo / Redo**: Unlimited history tracking (`Ctrl+Z` / `Ctrl+Y`).
 
 ---
 
-## Struktur Monorepo (NPM Workspaces)
+## Monorepo Architecture (NPM Workspaces)
 
 ```text
 ├── packages/
-│   ├── schema/        # Skema Zod v3, ProjectConfig, 7 Preset, & Tension Evaluator
-│   ├── sim-core/      # Mesin fisika SoA, Tower/Maze/Arena, Governor, Rule Engine
-│   ├── audio-core/    # Sintesis modal, Skala nada, Kuantizer, Reverb, Limiter
-│   └── render-core/   # Canvas 2D StageRenderer, Bloom Filter, Cached Glow Sprites
+│   ├── schema/        # Zod v3 schemas, ProjectConfig, 16 Presets, & Tension Evaluator
+│   ├── sim-core/      # SoA physics engine, Tower/Maze/Arena scenes, Governor, Rule Engine
+│   ├── audio-core/    # Modal synthesis, scales, quantizer, reverb, limiter, AudioDirector
+│   └── render-core/   # Canvas 2D StageRenderer, bloom filter, cached glow sprites
 ├── apps/
-│   └── studio/        # Web Studio (Vite, React 18, Tailwind, WebCodecs Exporter)
-├── knowledge/         # Dokumentasi lesson learned arsitektur & determinisme
-└── .kiro/specs/       # Dokumen spesifikasi teknis (FSD, TSD, Task List, Scan Evidence)
+│   └── studio/        # Web Studio (Vite, React 18, Tailwind CSS, WebCodecs Exporter)
+├── knowledge/         # Architecture notes & determinism documentation
+└── .kiro/specs/       # Technical specifications (FSD, TSD, Task List, Scan Evidence)
 ```
 
 ---
 
-## Panduan Instalasi & Menjalankan Proyek
+## Installation & Getting Started
 
-### Kebutuhan Sistem
-- **Node.js**: versi `>= 18.0.0`
-- **npm**: versi `>= 9.0.0`
-- **Browser Rekomendasi**: Google Chrome, Microsoft Edge, atau browser berbasis Chromium terkini (mendukung WebCodecs API).
+### System Requirements
+- **Node.js**: version `>= 18.0.0`
+- **npm**: version `>= 9.0.0`
+- **Recommended Browsers**: Latest Google Chrome, Microsoft Edge, or Chromium-based browsers with WebCodecs API support.
 
-### 1. Clone & Install Dependensi
+### 1. Clone & Install Dependencies
 ```bash
 git clone https://github.com/Whyuuuau/Algorithm-Ball.git
 cd Algorithm-Ball
 npm install
 ```
 
-### 2. Jalankan Server Pengembangan (Dev Mode)
+### 2. Start the Development Server
 ```bash
 npm run dev
 ```
-Buka browser dan akses alamat: **`http://localhost:5173/`**.
+Open your browser and navigate to: **`http://localhost:5173/`**.
 
-### 3. Jalankan Pengujian & Verifikasi
+### 3. Testing & Production Build
 ```bash
-# Validasi tipe TypeScript seluruh packages
+# Type-check all packages
 npx tsc -p tsconfig.json --noEmit
 
-# Jalankan seluruh unit test suite & verifikasi determinisme
+# Run unit test suite and verify determinism
 npm run test
 
-# Build bundle production studio
+# Build production studio bundle
 npm run build --workspace=@asmr/studio
 ```
 
 ---
 
-## Navigasi Pintasan Keyboard (Shortcuts)
+## Keyboard Shortcuts
 
-| Tombol | Fungsi |
+| Shortcut | Action |
 |---|---|
-| <kbd>Space</kbd> | Mulai / Jeda simulasi pratinjau (*Play / Pause*) |
-| <kbd>Ctrl</kbd> + <kbd>Z</kbd> | Batalkan perubahan konfigurasi (*Undo*) |
-| <kbd>Ctrl</kbd> + <kbd>Y</kbd> / <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd> | Ulangi perubahan (*Redo*) |
+| <kbd>Space</kbd> | Play / Pause live simulation preview |
+| <kbd>Ctrl</kbd> + <kbd>Z</kbd> | Undo configuration change |
+| <kbd>Ctrl</kbd> + <kbd>Y</kbd> / <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd> | Redo configuration change |
 
 ---
 
-## Standar & Kepatuhan Keamanan
-- **Safe Flash Guard**: Membatasi efek kilatan layar (flash) maksimal $\le 3$ kali per detik guna mematuhi standar aksesibilitas fotosensitivitas **WCAG 2.1**.
-- **No External Secrets**: Aplikasi bebas dari secret keys, API credentials, maupun ketergantungan server pihak ketiga.
+## Safety & Compliance Standards
+- **Safe Flash Guard**: Limits full-frame screen flash events to $\le 3$ flashes per second to conform with **WCAG 2.1** photosensitivity accessibility guidelines.
+- **Zero External Secrets**: Clean client-side codebase with no private keys, external telemetry, or third-party server tracking.
 
 ---
 
-## Lisensi
-Didistribusikan di bawah lisensi **MIT**. Bebas digunakan dan dikembangkan untuk kebutuhan produksi konten kreatif.
+## License
+Distributed under the **MIT License**. Free for personal and commercial video production workflows.

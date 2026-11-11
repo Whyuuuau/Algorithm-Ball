@@ -69,14 +69,14 @@ export const TensionCurveEditor: React.FC = () => {
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs">
       <div className="flex justify-between items-center mb-2">
-        <span className="font-semibold text-slate-200">Tension Curve ({curve.length}/8 titik)</span>
+        <span className="font-semibold text-slate-200">Tension Curve ({curve.length}/8 points)</span>
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={handleAddPoint}
             disabled={curve.length >= 8}
             className="p-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-cyan-400"
-            title="Tambah Titik"
+            title="Add Point"
           >
             <Plus className="w-3.5 h-3.5" />
           </button>
@@ -85,7 +85,7 @@ export const TensionCurveEditor: React.FC = () => {
             onClick={handleRemovePoint}
             disabled={curve.length <= 2}
             className="p-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-rose-400"
-            title="Hapus Titik Tengah"
+            title="Remove Middle Point"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>

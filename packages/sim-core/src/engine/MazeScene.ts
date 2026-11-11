@@ -101,12 +101,26 @@ export class MazeScene implements Scene {
     }
     this.flashAmt *= 0.8;
     this.shakeAmt *= 0.85;
+
+    const calmOutroSec = ctx.config.arc.calm_outro_sec ?? 3.0;
+    const remainingSec = Math.max(0, ctx.config.meta.duration_sec - timeSec);
+    const inCalmOutro = calmOutroSec > 0 && remainingSec <= calmOutroSec;
+    if (inCalmOutro) {
+      this.shakeAmt = 0;
+      this.flashAmt = 0;
+    }
+
     const heat = pool.heat;
     for (let i = 0, n = pool.count; i < n; i++) heat[i] *= 0.9;
 
     this.rawN = 0;
-    const gx = this.gx * sdt;
-    const gy = this.gy * sdt;
+    const osc = phys.gravity_oscillation ?? 0;
+    const curGx = osc > 0 ? this.gx * Math.cos(timeSec * osc) : this.gx;
+    const curGy = osc > 0 ? this.gy * (0.85 + 0.15 * Math.sin(timeSec * osc)) : this.gy;
+    const gx = curGx * sdt;
+    const gy = curGy * sdt;
+    const drag = phys.air_drag ?? 0;
+    const dragDamp = drag > 0 ? Math.max(0, 1 - drag * sdt * 60) : 1;
     const maxV = phys.max_speed * this.ppm;
     const lock = phys.speed_lock * this.ppm;
     const rest = phys.restitution_default;
@@ -121,8 +135,8 @@ export class MazeScene implements Scene {
     for (let s = 0; s < sub; s++) {
       const n = pool.count;
       for (let i = 0; i < n; i++) {
-        let vx = pvx[i] + gx;
-        let vy = pvy[i] + gy;
+        let vx = (pvx[i] + gx) * dragDamp;
+        let vy = (pvy[i] + gy) * dragDamp;
         const sp2 = vx * vx + vy * vy;
         if (lock > 0 && sp2 > 1e-6) {
           const k = lock / Math.sqrt(sp2);
@@ -169,11 +183,13 @@ export class MazeScene implements Scene {
           this.escaped += pw[i];
           ctx.emit({ t: timeSec + (s / sub) * dt, kind: "exit", lane: 0, index: RN, x: x / ARENA_W, y: y / ARENA_H, vel: 1, n: 1 });
           ctx.ruleEvent("ON_EXIT_ENTER", 0, 0);
-          this.flashAmt = Math.max(this.flashAmt, 0.25);
+          if (!inCalmOutro) this.flashAmt = Math.max(this.flashAmt, 0.25);
           if (this.escaped >= cfg.balls_to_escape && this.winner < 0) {
             this.winner = 0;
-            this.flashAmt = 1;
-            this.shakeAmt = 1;
+            if (!inCalmOutro) {
+              this.flashAmt = 1;
+              this.shakeAmt = 1;
+            }
           }
           const a = rng() * TAU;
           const spd = Math.max(1, Math.sqrt(vx * vx + vy * vy));
@@ -243,7 +259,7 @@ export class MazeScene implements Scene {
     }
 
     // keep the K strongest ring impacts
-    const K = ctx.config.sound.max_events_per_frame;
+    const K = Math.max(8, ctx.config.sound.max_events_per_frame);
     const best: number[] = [];
     for (let i = 0; i < this.rawN; i++) {
       if (best.length < K) best.push(i);
@@ -290,12 +306,22 @@ export class MazeScene implements Scene {
       case "ROTATE_ARENA":
         this.speedMult = Math.max(-4, Math.min(4, this.speedMult * (action.value ?? 1.25)));
         break;
-      case "SHAKE":
-        this.shakeAmt = Math.max(this.shakeAmt, action.value ?? 1);
+      case "SHAKE": {
+        const calmOutroSec = ctx.config.arc.calm_outro_sec ?? 3.0;
+        const remainingSec = Math.max(0, ctx.config.meta.duration_sec - this.frame * ctx.dt);
+        if (calmOutroSec <= 0 || remainingSec > calmOutroSec) {
+          this.shakeAmt = Math.max(this.shakeAmt, action.value ?? 1);
+        }
         break;
-      case "FLASH":
-        this.flashAmt = Math.max(this.flashAmt, action.value ?? 1);
+      }
+      case "FLASH": {
+        const calmOutroSec = ctx.config.arc.calm_outro_sec ?? 3.0;
+        const remainingSec = Math.max(0, ctx.config.meta.duration_sec - this.frame * ctx.dt);
+        if (calmOutroSec <= 0 || remainingSec > calmOutroSec) {
+          this.flashAmt = Math.max(this.flashAmt, action.value ?? 1);
+        }
         break;
+      }
       default:
         break;
     }

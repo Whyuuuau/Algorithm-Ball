@@ -52,6 +52,12 @@ export class ArenaScene implements Scene {
     this.timeSec = timeSec;
     this.flashAmt *= 0.8;
     this.shakeAmt *= 0.85;
+    const calmOutroSec = this.ctx.config.arc.calm_outro_sec ?? 3.0;
+    const remainingSec = Math.max(0, this.ctx.config.meta.duration_sec - timeSec);
+    if (calmOutroSec > 0 && remainingSec <= calmOutroSec) {
+      this.shakeAmt = 0;
+      this.flashAmt = 0;
+    }
     const buf = this.evBuf;
     buf.length = 0;
     this.algo.step(frame, this.ctx.dt, this.cfg.ops_per_frame, (e) => {
@@ -78,8 +84,11 @@ export class ArenaScene implements Scene {
   }
 
   public apply(action: RuleAction): void {
-    if (action.type === "SHAKE") this.shakeAmt = Math.max(this.shakeAmt, action.value ?? 1);
-    if (action.type === "FLASH") this.flashAmt = Math.max(this.flashAmt, action.value ?? 1);
+    const calmOutroSec = this.ctx.config.arc.calm_outro_sec ?? 3.0;
+    const remainingSec = Math.max(0, this.ctx.config.meta.duration_sec - this.timeSec);
+    const inCalmOutro = calmOutroSec > 0 && remainingSec <= calmOutroSec;
+    if (action.type === "SHAKE" && !inCalmOutro) this.shakeAmt = Math.max(this.shakeAmt, action.value ?? 1);
+    if (action.type === "FLASH" && !inCalmOutro) this.flashAmt = Math.max(this.flashAmt, action.value ?? 1);
   }
 
   public fill(snap: SimSnapshot): void {

@@ -14,7 +14,11 @@ export const RECIPES: Record<PaletteName, Recipe> = {
   glass_bell: { ratios: [1, 2.76, 5.4, 8.93], decays: [1.5, 1.0, 0.6, 0.3], amps: [1, 0.6, 0.4, 0.2] },
   marimba_wood: { ratios: [1, 3.98, 9.92], decays: [0.32, 0.18, 0.07], amps: [1, 0.5, 0.22] },
   thocky_keys: { ratios: [1, 1.8], decays: [0.05, 0.03], amps: [1, 0.4] },
-  water_drop: { ratios: [1, 2], decays: [0.11, 0.04], amps: [1, 0.25] }
+  water_drop: { ratios: [1, 2], decays: [0.11, 0.04], amps: [1, 0.25] },
+  synth_pluck: { ratios: [1, 2, 3, 4, 6], decays: [0.38, 0.22, 0.14, 0.08, 0.04], amps: [1, 0.65, 0.4, 0.25, 0.12] },
+  music_box: { ratios: [1, 5.82, 9.4], decays: [1.1, 0.35, 0.09], amps: [1, 0.45, 0.18] },
+  crystal_bowl: { ratios: [1, 1.006, 2.76, 5.4], decays: [2.0, 1.8, 1.2, 0.7], amps: [1, 0.85, 0.35, 0.15] },
+  cosmic_laser: { ratios: [1, 2.5], decays: [0.14, 0.05], amps: [1, 0.3] }
 };
 
 /** Tiny deterministic noise source (LCG) so synthesis never touches Math.random. */
@@ -41,6 +45,14 @@ export function renderModalSample(palette: PaletteName, freq: number, sr: number
       const f = freq * (1 + 1.4 * Math.exp(-t / 0.018));
       phase += (2 * Math.PI * f) / sr;
       out[i] = Math.sin(phase) * Math.exp(-t / rc.decays[0]) + 0.25 * Math.sin(phase * 2.01) * Math.exp(-t / rc.decays[1]);
+    }
+  } else if (palette === "cosmic_laser") {
+    let phase = 0;
+    for (let i = 0; i < len; i++) {
+      const t = i / sr;
+      const f = freq * (1 + 2.5 * Math.exp(-t / 0.022));
+      phase += (2 * Math.PI * f) / sr;
+      out[i] = Math.sin(phase) * Math.exp(-t / rc.decays[0]) + 0.3 * Math.sin(phase * 2) * Math.exp(-t / rc.decays[1]);
     }
   } else if (palette === "thocky_keys") {
     const noise = makeNoise(0x9e3779b9 ^ Math.round(freq * 100));
