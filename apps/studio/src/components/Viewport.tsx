@@ -117,11 +117,17 @@ export const Viewport: React.FC = () => {
     }
 
     const totalFrames = Math.round(config.meta.duration_sec * config.meta.fps);
+    const frameIntervalMs = 1000 / Math.max(1, config.meta.fps);
+    let lastTick = performance.now();
+    let accMs = 0;
 
-    const loop = () => {
+    const loop = (now: number) => {
       if (!simRef.current || !stageRef.current) return;
 
-      const now = performance.now();
+      const deltaMs = Math.min(100, Math.max(0, now - lastTick));
+      lastTick = now;
+      accMs += deltaMs;
+
       frameCountRef.current++;
       if (now - lastTimeRef.current >= 500) {
         setFpsLive(Math.round((frameCountRef.current * 1000) / (now - lastTimeRef.current)));
@@ -129,28 +135,40 @@ export const Viewport: React.FC = () => {
         lastTimeRef.current = now;
       }
 
-      const snap = simRef.current.step();
-      setCurrentFrame(snap.frame);
-      setSimState(snap);
-
-      const progress = totalFrames > 0 ? snap.frame / totalFrames : 0;
-      const tension = evaluateTensionCurve(config.arc.tension_curve, progress);
-
-      if (audioDirRef.current) {
-        const hitLog = simRef.current.getHitLog();
-        if (hitCursorRef.current < hitLog.length) {
-          const slice = hitLog.slice(hitCursorRef.current);
-          hitCursorRef.current = hitLog.length;
-          const midi = audioDirRef.current.playLiveHits(slice, tension);
-          if (midi !== null) lastNoteRef.current = midi;
-        }
+      let stepped = false;
+      let snap = useProjectStore.getState().simState;
+      let steps = 0;
+      while (accMs >= frameIntervalMs && steps < 4) {
+        snap = simRef.current.step();
+        accMs -= frameIntervalMs;
+        steps++;
+        stepped = true;
+        if (snap.frame >= totalFrames) break;
       }
 
-      stageRef.current.draw(snap, tension, lastNoteRef.current);
+      if (stepped && snap) {
+        setCurrentFrame(snap.frame);
+        setSimState(snap);
 
-      if (snap.frame >= totalFrames) {
-        setIsPlaying(false);
-        return;
+        const progress = totalFrames > 0 ? snap.frame / totalFrames : 0;
+        const tension = evaluateTensionCurve(config.arc.tension_curve, progress);
+
+        if (audioDirRef.current) {
+          const hitLog = simRef.current.getHitLog();
+          if (hitCursorRef.current < hitLog.length) {
+            const slice = hitLog.slice(hitCursorRef.current);
+            hitCursorRef.current = hitLog.length;
+            const midi = audioDirRef.current.playLiveHits(slice, tension);
+            if (midi !== null) lastNoteRef.current = midi;
+          }
+        }
+
+        stageRef.current.draw(snap, tension, lastNoteRef.current);
+
+        if (snap.frame >= totalFrames) {
+          setIsPlaying(false);
+          return;
+        }
       }
 
       reqIdRef.current = requestAnimationFrame(loop);

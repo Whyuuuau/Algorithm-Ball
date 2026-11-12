@@ -92,8 +92,9 @@ export class TowerScene implements Scene {
   public init(): void {
     const { cfg, L } = this;
     const laneW = ARENA_W / L;
+    const isDuelCards = this.ctx.config.look.tower_hud_style === "duel_cards";
     const floorTop = ARENA_H * 0.4;
-    const floorBottom = ARENA_H * 0.9;
+    const floorBottom = isDuelCards ? ARENA_H * 0.885 : ARENA_H * 0.765;
 
     let maxFloors = 1;
     const hpLists: number[][] = [];
@@ -134,13 +135,33 @@ export class TowerScene implements Scene {
       const bottom = Math.min(pg.bottom * ARENA_H, floorTop - 70);
       this.pegDy = pg.rows > 1 ? Math.max(20, (bottom - this.pegTop) / (pg.rows - 1)) : 0;
       const sx = laneW / pg.per_row;
+      const midR = (pg.rows - 1) * 0.5;
+      const midK = (pg.per_row - 1) * 0.5;
+
       for (let l = 0; l < L; l++) {
         this.pegBase.push(this.pegs.length);
         for (let r = 0; r < pg.rows; r++) {
+          const odd = r % 2 === 1;
           for (let k = 0; k < pg.per_row; k++) {
-            const odd = r % 2 === 1;
             if (odd && k === pg.per_row - 1) {
-              // dummy slot to keep fixed stride; hidden (radius 0)
+              this.pegs.push({ x: -1000, y: -1000, r: 0, lane: l, glow: 0 });
+              continue;
+            }
+            let keep = true;
+            if (pg.pattern === "funnel") {
+              // Inverted pyramid opening slightly toward center
+              const rowMargin = Math.floor((r / Math.max(1, pg.rows - 1)) * (pg.per_row * 0.42));
+              keep = k >= rowMargin && k <= pg.per_row - 1 - rowMargin;
+            } else if (pg.pattern === "diamond") {
+              const dr = Math.abs(r - midR) / Math.max(1, midR || 1);
+              const dk = Math.abs(k - (odd ? midK - 0.5 : midK)) / Math.max(1, midK || 1);
+              keep = dr + dk <= 1.15;
+            } else if (pg.pattern === "cathedral") {
+              // Central arched hollow channel with side columns
+              const distCenter = Math.abs(k - (odd ? midK - 0.5 : midK));
+              keep = distCenter > 0.65 || r < 2;
+            }
+            if (!keep) {
               this.pegs.push({ x: -1000, y: -1000, r: 0, lane: l, glow: 0 });
               continue;
             }
@@ -161,13 +182,14 @@ export class TowerScene implements Scene {
     const lane = cfg.lanes[l];
     const rng = ctx.rng.physics;
     const cx = (this.laneX0[l] + this.laneX1[l]) / 2;
-    const span = (this.laneX1[l] - this.laneX0[l]) * 0.3;
+    const isDuelCards = ctx.config.look.tower_hud_style === "duel_cards";
+    const span = (this.laneX1[l] - this.laneX0[l]) * (isDuelCards ? 0.25 : 0.3);
     const sp = cfg.spawn_speed * this.ppm;
-    const y0 = atY >= 0 ? atY : ARENA_H * 0.05;
+    const y0 = atY >= 0 ? atY : (isDuelCards ? ARENA_H * 0.32 : ARENA_H * 0.05);
     const baseR = lane.ball_radius * this.laneRadiusScale[l];
     ctx.gov.spawn(ctx.pool, l, count, baseR, (i, out) => {
       out[0] = cx + (rng() * 2 - 1) * span;
-      out[1] = y0 + rng() * 30;
+      out[1] = y0 + rng() * 25;
       out[2] = (rng() * 2 - 1) * sp;
       out[3] = rng() * sp * 0.5;
     });
@@ -258,6 +280,11 @@ export class TowerScene implements Scene {
     const pegs = this.pegs;
     const pegBase = this.pegBase;
 
+    const isDuelCards = ctx.config.look.tower_hud_style === "duel_cards";
+    const cardPad = isDuelCards ? 18 : 0;
+    const ceilMinY = isDuelCards ? ARENA_H * 0.30 : 0;
+    const floorMaxY = isDuelCards ? ARENA_H * 0.915 : ARENA_H * 2;
+
     for (let s = 0; s < sub; s++) {
       const n = pool.count;
       for (let i = 0; i < n; i++) {
@@ -279,8 +306,8 @@ export class TowerScene implements Scene {
         const l = pl[i];
 
         // lane walls
-        const a = lx0[l] + r;
-        const b = lx1[l] - r;
+        const a = lx0[l] + cardPad + r;
+        const b = lx1[l] - cardPad - r;
         if (x < a) {
           x = a;
           if (vx < 0) {
@@ -294,9 +321,12 @@ export class TowerScene implements Scene {
             vx = -vx * rest;
           }
         }
-        if (y < r) {
-          y = r;
+        if (y < ceilMinY + r) {
+          y = ceilMinY + r;
           if (vy < 0) vy = -vy * rest;
+        } else if (y > floorMaxY - r) {
+          y = floorMaxY - r;
+          if (vy > 0) vy = -vy * rest;
         }
 
         // pegs
@@ -310,6 +340,7 @@ export class TowerScene implements Scene {
             for (let k = kc - 1; k <= kc + 1; k++) {
               if (k < 0 || k >= pegPer || (odd && k === pegPer - 1)) continue;
               const peg = pegs[base + rr * pegPer + k];
+              if (peg.r <= 0) continue;
               const dx = x - peg.x;
               const dy = y - peg.y;
               const rad = r + peg.r;

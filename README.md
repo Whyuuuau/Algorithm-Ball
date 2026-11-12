@@ -48,14 +48,14 @@
 
 ## Core Features
 
-### 1. Three Scene Modes + 20 Viral Built-in Presets (4 Categories)
+### 1. Nine Scene Engines + 17 Zero-Duplicate Flagship Presets (4 Categories)
 
 | Category | Featured Presets | Highlights & Signature Experience |
 |---|---|---|
-| **Satisfying & ASMR** | `One Ball to 1,000,000 (60s Journey)`<br>`Zen Droplet Symphony (60s ASMR)`<br>`Galton Board Bell Curve`<br>`Japanese Zen Water`<br>`Antique Music Box`<br>`Tibetan Crystal Bowl`<br>`3 Towers Classic` | **Starts with 1 solitary ball and finishes at 60s**: 8-floor calibrated pacing with fountain geyser showers, explosive shockwaves, and pure meditative water droplets chiming along traditional scales. |
-| **High Tension & Battle** | `The 60s Solitary Duel: Red vs Blue`<br>`Mechanical Pachinko 1-Ball Avalanche`<br>`Cyberpunk 4-Way Overdrive`<br>`Duel 2 Lanes Extreme`<br>`Mechanical Pachinko Frenzy`<br>`Speedrun 25 Floors` | **1 vs 1 solitary ball race to floor 8 at 60s**: Red fountain vs Blue shockwave photo-finish, 1-ball pachinko avalanches with 10,000 thock keyboard clicks, and 4-faction synthwave wars. |
-| **Sci-Fi & Cosmic** | `Black Hole Singularity Orbit`<br>`5 Cincin Maze Escape`<br>`Cosmic Laser Superstorm` | 8 concentric rings orbiting against a gravitational black hole singularity, tangential angular velocity escapes, and arcade laser zap swarm dynamics. |
-| **Algorithm & Arena** | `Falling Sand Alchemist`<br>`TSP 2-Opt Untangling`<br>`BFS vs Fractal Lightning`<br>`Boids vs Black Hole` | Four interactive scientific computing and cellular automata pixel arenas synchronized to procedurally generated acoustic scales. |
+| **Satisfying & ASMR** | `Harmonic Pendulum Wave Harp`<br>`Chromatic Prism Chamber`<br>`Sacred Lens Caustic Mandala`<br>`Chrono-Pendulum Goblet Surge`<br>`Galton Probability Bell Curve` | **Phase-locked 18-string Pendulum Wave with liquid silk ribbon**, **breathing 7-sided Chromatic Prism**, **precessing Vesica Piscis optical lens**, **chalice overflow fill gauge**, and **funnel Galton curve**. |
+| **High Tension & Battle** | `The Exponential Gambit: 1 vs 512`<br>`Hexagonal Quantum Centrifuge`<br>`4-Faction Cyber Laser Siege`<br>`Custom Keyswitch Pachinko ASMR`<br>`1-Orb Evolution to 1,000,000` | **Broadcast Duel HUD**, **spinning hexagonal cube centrifuge**, **cathedral pins & 136 BPM synth pulse**, **lubed mechanical switch acoustics**, and **Handpan mutating solo orb**. |
+| **Sci-Fi & Cosmic** | `Celestial Polyrhythm Astrarium`<br>`Solar Handpan Gravity Vault`<br>`432 Hz Aurora Crystal Sanctuary` | **16 concentric planetary orbits with constellation threads**, **breakable concentric vault rings with metallic handpan**, and **deep aurora crystal bowls**. |
+| **Algorithm & Arena** | `Falling Sand Alchemist`<br>`TSP 2-Opt Geometric Untangler`<br>`BFS Wavefront vs Fractal Lightning`<br>`Cosmic Boids vs Singularity` | Four interactive scientific computing and cellular automata pixel arenas synchronized to procedurally generated acoustic scales. |
 
 #### Algorithm Arena Visualizers:
 1. **Falling Sand Alchemist**: Interactive pixel-grid cellular automata simulating Sand, Water, Lava, Ice, Steam, Obsidian, and Glass particles complete with exothermic heat transfer and state transitions.

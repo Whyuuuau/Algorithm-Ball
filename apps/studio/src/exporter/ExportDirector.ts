@@ -90,9 +90,15 @@ export class ExportDirector {
     await new Promise((r) => setTimeout(r, 0));
 
     let audioBuffer: AudioBuffer | null = null;
+    let scheduledNotes: { t: number; midi: number }[] = [];
     try {
       const audioDirector = new AudioDirector(config.sound);
       const hitLog = headlessSim.getHitLog();
+      scheduledNotes = audioDirector.scheduleNotes(
+        hitLog,
+        config.meta.duration_sec,
+        config.arc?.tension_curve
+      );
       audioBuffer = await audioDirector.renderAudioBuffer(
         hitLog,
         config.meta.duration_sec,
@@ -124,7 +130,7 @@ export class ExportDirector {
     });
 
     const videoBitrate = Math.round((config.export?.video_mbps ?? 14) * 1_000_000);
-    const audioBitrate = Math.round((config.export?.audio_kbps ?? 256) * 1000);
+    const requestedAudioBitrate = Math.round((config.export?.audio_kbps ?? 192) * 1000);
 
     const videoSource = new CanvasSource(exportCanvas, {
       codec: "avc",
@@ -132,34 +138,66 @@ export class ExportDirector {
     });
     output.addVideoTrack(videoSource, { frameRate: fps });
 
-    // Audio support check with automatic fallback: AAC -> Opus -> silent
+    // Negotiate exact supported AudioEncoder configuration (AAC @ <=192kbps -> Opus fallback)
     let audioSource: AudioBufferSource | null = null;
-    if (audioBuffer) {
-      try {
-        const canAac = typeof AudioEncoder !== "undefined" && (await canEncodeAudio("aac").catch(() => false));
-        const canOpus = typeof AudioEncoder !== "undefined" && (await canEncodeAudio("opus").catch(() => false));
-        const chosenCodec = canAac ? "aac" : canOpus ? "opus" : null;
-        if (chosenCodec) {
-          audioSource = new AudioBufferSource({
-            codec: chosenCodec,
-            bitrate: audioBitrate
-          });
-          output.addAudioTrack(audioSource);
+    if (audioBuffer && typeof AudioEncoder !== "undefined") {
+      const candidates: Array<{ codec: "aac" | "opus"; webCodec: string; bitrates: number[] }> = [
+        {
+          codec: "aac",
+          webCodec: "mp4a.40.2",
+          bitrates: Array.from(new Set([requestedAudioBitrate, 192_000, 160_000, 128_000, 96_000]))
+        },
+        {
+          codec: "opus",
+          webCodec: "opus",
+          bitrates: [160_000, 128_000, 96_000]
         }
-      } catch (err) {
-        console.warn("Audio track initialization skipped:", err);
+      ];
+
+      outer: for (const cand of candidates) {
+        for (const br of cand.bitrates) {
+          try {
+            const wcSupport = await AudioEncoder.isConfigSupported({
+              codec: cand.webCodec,
+              numberOfChannels: audioBuffer.numberOfChannels,
+              sampleRate: audioBuffer.sampleRate,
+              bitrate: br
+            });
+            if (!wcSupport.supported) continue;
+
+            const mbSupport = await canEncodeAudio(cand.codec, {
+              bitrate: br,
+              numberOfChannels: audioBuffer.numberOfChannels,
+              sampleRate: audioBuffer.sampleRate
+            }).catch(() => true);
+            if (!mbSupport) continue;
+
+            audioSource = new AudioBufferSource({
+              codec: cand.codec,
+              bitrate: br
+            });
+            output.addAudioTrack(audioSource);
+            break outer;
+          } catch {
+            // Try next bitrate/codec
+          }
+        }
       }
     }
 
     await output.start();
 
-    if (audioSource && audioBuffer) {
-      try {
-        await audioSource.add(audioBuffer);
-      } catch (err) {
-        console.warn("Audio buffer encoding skipped:", err);
-      }
-    }
+    // Feed audio asynchronously while video frames encode so chunks interleave cleanly in MP4
+    const audioPromise =
+      audioSource && audioBuffer
+        ? audioSource.add(audioBuffer).catch((err) => {
+            console.error("Audio encoding error:", err);
+            throw new Error(`Audio track encoding failed: ${err instanceof Error ? err.message : String(err)}`);
+          })
+        : Promise.resolve();
+
+    let noteCursor = 0;
+    let activeMidi: number | null = null;
 
     for (let f = 0; f < totalFrames; f++) {
       if (signal?.aborted) {
@@ -170,8 +208,13 @@ export class ExportDirector {
       const state = videoSim.step();
       const progress = f / totalFrames;
       const tension = evaluateTensionCurve(config.arc.tension_curve, progress);
+      const frameTime = f / fps;
+      while (noteCursor < scheduledNotes.length && scheduledNotes[noteCursor].t <= frameTime) {
+        activeMidi = scheduledNotes[noteCursor].midi;
+        noteCursor++;
+      }
 
-      stageRenderer.draw(state, tension);
+      stageRenderer.draw(state, tension, activeMidi);
 
       await videoSource.add(f / fps, 1 / fps);
 
@@ -186,6 +229,7 @@ export class ExportDirector {
       }
     }
 
+    await audioPromise;
     onProgress({ phase: "FINALIZING", frame: totalFrames, totalFrames, progressPercent: 98 });
     await output.finalize();
 

@@ -6,6 +6,13 @@ import {
   TSP_PRESET,
   LIGHTNING_PRESET,
   BOIDS_PRESET,
+  DUEL_1_VS_1000_PRESET,
+  CUBE_ARENA_PRESET,
+  OVERFLOW_BOWL_PRESET,
+  OPTICAL_MIRRORS_PRESET,
+  PENDULUM_WAVE_PRESET,
+  POLY_ORBIT_PRESET,
+  PRISM_CHAMBER_PRESET,
   type ProjectConfig
 } from "@asmr/schema";
 import {
@@ -54,8 +61,8 @@ describe("@asmr/sim-core", () => {
 
   it("runs TOWER_BREAKER deterministically across 600 frames in < 500ms", () => {
     const cfg: ProjectConfig = structuredClone(CLASSIC_3_TOWERS_PRESET);
-    const sim1 = new SimCore(cfg, 360, 640);
-    const sim2 = new SimCore(cfg, 360, 640);
+    const sim1 = new SimCore(cfg);
+    const sim2 = new SimCore(cfg);
     sim1.initSync();
     sim2.initSync();
 
@@ -85,10 +92,10 @@ describe("@asmr/sim-core", () => {
         count: 3
       };
     }
-    const sim = new SimCore(cfg, 360, 640);
+    const sim = new SimCore(cfg);
     sim.initSync();
 
-    for (let f = 0; f < 300; f++) {
+    for (let f = 0; f < 450; f++) {
       sim.step();
     }
     const brokeFloor = sim.getHitLog().some((h) => h.kind === "break");
@@ -97,8 +104,8 @@ describe("@asmr/sim-core", () => {
 
   it("runs MAZE_ESCAPE deterministically and rotates/breaks rings", () => {
     const cfg: ProjectConfig = structuredClone(MAZE_RINGS_PRESET);
-    const sim1 = new SimCore(cfg, 360, 640);
-    const sim2 = new SimCore(cfg, 360, 640);
+    const sim1 = new SimCore(cfg);
+    const sim2 = new SimCore(cfg);
     sim1.initSync();
     sim2.initSync();
 
@@ -117,8 +124,8 @@ describe("@asmr/sim-core", () => {
     const presets = [SAND_PRESET, TSP_PRESET, LIGHTNING_PRESET, BOIDS_PRESET];
     for (const preset of presets) {
       const cfg = structuredClone(preset);
-      const simA = new SimCore(cfg, 360, 640);
-      const simB = new SimCore(cfg, 360, 640);
+      const simA = new SimCore(cfg);
+      const simB = new SimCore(cfg);
       simA.initSync();
       simB.initSync();
 
@@ -152,7 +159,7 @@ describe("@asmr/sim-core", () => {
           depth_limit: 2,
           budget_per_frame: 4
         },
-        actions: [{ type: "MULTIPLY_BALLS", value: 2, target_lane: "", target_rule: "" }]
+        actions: [{ type: "SPAWN", value: 2, target_rule: "" }]
       }
     ]);
 
@@ -174,5 +181,35 @@ describe("@asmr/sim-core", () => {
     engine.onFrame({ timeSec: 1.5, frame: 90, tension: 0.5, virtualTotal: 10, bpm: 120 });
     const a4 = engine.drain(4);
     expect(a4.length).toBe(0);
+  });
+
+  it("runs CUBE_ARENA, OVERFLOW_BOWL, OPTICAL_MIRRORS, PENDULUM_WAVE, POLY_ORBIT, PRISM_CHAMBER, and DUEL_1_VS_1000 deterministically with hits", () => {
+    const presets = [
+      DUEL_1_VS_1000_PRESET,
+      CUBE_ARENA_PRESET,
+      OVERFLOW_BOWL_PRESET,
+      OPTICAL_MIRRORS_PRESET,
+      PENDULUM_WAVE_PRESET,
+      POLY_ORBIT_PRESET,
+      PRISM_CHAMBER_PRESET
+    ];
+    for (const preset of presets) {
+      const simA = new SimCore(structuredClone(preset));
+      const simB = new SimCore(structuredClone(preset));
+      simA.initSync();
+      simB.initSync();
+
+      let sA = simA.step();
+      let sB = simB.step();
+      for (let f = 1; f < 300; f++) {
+        sA = simA.step();
+        sB = simB.step();
+      }
+      expect(sA.hash).toBe(sB.hash);
+      expect(sA.pool.count).toBeGreaterThan(0);
+      expect(Number.isFinite(sA.pool.x[0])).toBe(true);
+      expect(Number.isFinite(sA.pool.y[0])).toBe(true);
+      expect(simA.getHitLog().length).toBeGreaterThanOrEqual(5);
+    }
   });
 });

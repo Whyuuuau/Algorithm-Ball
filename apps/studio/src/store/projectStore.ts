@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import {
   type ProjectConfig,
-  CLASSIC_3_TOWERS_PRESET,
+  PENDULUM_WAVE_PRESET,
   PRESETS,
   parseProjectConfig
 } from "@asmr/schema";
@@ -76,7 +76,7 @@ export interface ProjectStore {
 }
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
-  config: structuredClone(CLASSIC_3_TOWERS_PRESET),
+  config: structuredClone(PENDULUM_WAVE_PRESET),
   undoStack: [],
   redoStack: [],
   savedPresets: loadSavedPresets(),

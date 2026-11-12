@@ -19,7 +19,7 @@ export const MetaConfigSchema = z.object({
 
 export const ArcConfigSchema = z.object({
   hook_text: z.string().default("1 MINUTE. 3 TOWERS.\nWHO BREAKS FLOOR 10 FIRST?"),
-  hook_duration_sec: z.number().min(0).max(30).default(3.5),
+  hook_duration_sec: z.number().min(0).max(180).default(3.5),
   tension_curve: z.array(TensionPointSchema).min(2).max(12).default([
     [0, 0.2],
     [0.1, 0.35],
@@ -105,12 +105,13 @@ export const FloorHpSchema = z.object({
 
 export const PegsSchema = z.object({
   enabled: z.boolean().default(true),
+  pattern: z.enum(["staggered", "funnel", "diamond", "cathedral"]).default("staggered"),
   rows: z.number().int().min(1).max(14).default(5),
   per_row: z.number().int().min(1).max(12).default(4),
   /** px */
   radius: z.number().min(2).max(30).default(10),
-  top: z.number().min(0.05).max(0.5).default(0.14),
-  bottom: z.number().min(0.1).max(0.6).default(0.32)
+  top: z.number().min(0.05).max(0.5).default(0.18),
+  bottom: z.number().min(0.1).max(0.6).default(0.34)
 });
 
 export const TowerBreakerSceneSchema = z.object({
@@ -176,10 +177,136 @@ export const AlgorithmArenaSchema = z.object({
   params: z.record(z.string(), z.number()).default({})
 });
 
+export const CubeArenaSceneSchema = z.object({
+  type: z.literal("CUBE_ARENA"),
+  chamber_shape: z.enum(["circle", "hexagon", "diamond"]).default("circle"),
+  outer_radius: z.number().min(200).max(510).default(440),
+  cross_blades: z.number().int().min(0).max(8).default(4),
+  cross_speed: z.number().min(-6).max(6).default(0.85),
+  cage_enabled: z.boolean().default(true),
+  cage_size: z.number().min(60).max(260).default(135),
+  cage_speed: z.number().min(-6).max(6).default(-0.85),
+  initial_cubes: z.number().int().min(1).max(500).default(16),
+  cube_size: z.number().min(4).max(32).default(14),
+  split_on_escape: z.number().int().min(0).max(6).default(2),
+  split_on_blade: z.number().int().min(0).max(4).default(0),
+  wall_color: hexColor.default("#ffffff"),
+  cage_color: hexColor.default("#cbd5e1"),
+  max_cubes: z.number().int().min(10).max(3000).default(600)
+});
+
+export const OverflowBowlSceneSchema = z.object({
+  type: z.literal("OVERFLOW_BOWL"),
+  bowl_shape: z.enum(["u_bowl", "goblet_funnel"]).default("u_bowl"),
+  bowl_radius: z.number().min(200).max(500).default(420),
+  rim_angle_deg: z.number().min(30).max(165).default(85),
+  wedge_angle_deg: z.number().min(4).max(60).default(22),
+  swing_amplitude_deg: z.number().min(5).max(80).default(52),
+  swing_speed: z.number().min(0.2).max(8).default(2.1),
+  initial_balls: z.number().int().min(1).max(200).default(2),
+  ball_radius: z.number().min(3).max(24).default(9),
+  split_on_hit: z.boolean().default(true),
+  split_cooldown_ms: z.number().min(20).max(1000).default(180),
+  bowl_color: hexColor.default("#94a3b8"),
+  wedge_color: hexColor.default("#cbd5e1")
+});
+
+export const OpticalMirrorsSceneSchema = z.object({
+  type: z.literal("OPTICAL_MIRRORS"),
+  mirror_shape: z.enum(["vesica_piscis", "ellipse", "circle"]).default("vesica_piscis"),
+  mirror_spin: z.number().min(-2).max(2).default(0),
+  width_px: z.number().min(300).max(1040).default(760),
+  height_px: z.number().min(400).max(1600).default(1340),
+  ball_count: z.number().int().min(1).max(128).default(16),
+  ball_radius: z.number().min(3).max(24).default(9),
+  ball_speed: z.number().min(4).max(60).default(24),
+  origin_offset_y: z.number().min(-400).max(400).default(0),
+  spread_deg: z.number().min(1).max(360).default(360),
+  show_rays: z.boolean().default(true),
+  show_grid: z.boolean().default(true),
+  mirror_color: hexColor.default("#00e5ff")
+});
+
+/**
+ * Harmonic Pendulum Wave: a row of pendulums whose oscillation counts differ by a fixed step,
+ * so the whole row drifts through braids, travelling waves and snaps back into perfect alignment
+ * exactly once per loop (analytic motion => frame-perfect seamless loops).
+ */
+export const PendulumWaveSceneSchema = z.object({
+  type: z.literal("PENDULUM_WAVE"),
+  count: z.number().int().min(3).max(32).default(18),
+  /** oscillations the slowest pendulum completes per loop */
+  base_cycles: z.number().int().min(2).max(80).default(20),
+  /** extra oscillations per loop added for every following pendulum */
+  cycle_step: z.number().min(0.5).max(4).default(1),
+  /** loop length in seconds; 0 = project duration */
+  loop_sec: z.number().min(0).max(180).default(0),
+  /** lateral swing distance in px (same for every bob so strings stay readable) */
+  amplitude_px: z.number().min(10).max(460).default(64),
+  string_length_px: z.number().min(300).max(1500).default(960),
+  spread_px: z.number().min(300).max(1040).default(900),
+  pivot_y: z.number().min(40).max(600).default(340),
+  bob_radius: z.number().min(4).max(30).default(13),
+  /** when a note is struck */
+  trigger: z.enum(["center", "extremes", "both"]).default("center"),
+  show_strings: z.boolean().default(true),
+  show_rest_marks: z.boolean().default(true),
+  wave_ribbon: z.boolean().default(true),
+  string_color: hexColor.default("#9bdcff")
+});
+
+/**
+ * Orbital Polyrhythm Clock: planets on concentric rings revolve at integer ratios.
+ * Every time a planet crosses a gate it strikes its own note; at loop start all planets
+ * align on the gate and resolve into a full chord.
+ */
+export const PolyOrbitSceneSchema = z.object({
+  type: z.literal("POLY_ORBIT"),
+  orbits: z.number().int().min(2).max(24).default(7),
+  first_ratio: z.number().int().min(1).max(40).default(1),
+  ratio_step: z.number().min(0.5).max(5).default(1),
+  loop_sec: z.number().min(0).max(180).default(0),
+  gates: z.number().int().min(1).max(8).default(1),
+  gate_angle_deg: z.number().min(-180).max(180).default(-90),
+  inner_radius: z.number().min(40).max(300).default(110),
+  outer_radius: z.number().min(200).max(520).default(440),
+  planet_radius: z.number().min(4).max(26).default(12),
+  direction_mode: z.enum(["same", "alternate"]).default("alternate"),
+  ring_color: hexColor.default("#8ecbff"),
+  show_gates: z.boolean().default(true),
+  constellation_links: z.boolean().default(true)
+});
+
+/**
+ * Prism Chamber: balls bounce inside a slowly spinning, breathing regular polygon.
+ * Every side is tuned to its own scale degree and glows its own hue; balls inherit the hue
+ * of the last wall they touched, and a side that is struck often enough "refracts" a new ball.
+ */
+export const PrismChamberSceneSchema = z.object({
+  type: z.literal("PRISM_CHAMBER"),
+  sides: z.number().int().min(3).max(12).default(6),
+  radius: z.number().min(180).max(500).default(400),
+  spin: z.number().min(-4).max(4).default(0.35),
+  breathe_amp: z.number().min(0).max(0.35).default(0.1),
+  breathe_speed: z.number().min(0).max(4).default(0.6),
+  initial_balls: z.number().int().min(1).max(60).default(3),
+  ball_radius: z.number().min(3).max(24).default(9),
+  hits_per_split: z.number().int().min(1).max(30).default(4),
+  max_balls: z.number().int().min(4).max(600).default(160),
+  inherit_color: z.boolean().default(true),
+  wall_thickness: z.number().min(2).max(30).default(10)
+});
+
 export const SceneConfigSchema = z.discriminatedUnion("type", [
   TowerBreakerSceneSchema,
   MazeEscapeSceneSchema,
-  AlgorithmArenaSchema
+  AlgorithmArenaSchema,
+  CubeArenaSceneSchema,
+  OverflowBowlSceneSchema,
+  OpticalMirrorsSceneSchema,
+  PendulumWaveSceneSchema,
+  PolyOrbitSceneSchema,
+  PrismChamberSceneSchema
 ]);
 
 /* ------------------------------------------------------------------ */
@@ -194,7 +321,9 @@ export const PaletteNameSchema = z.enum([
   "synth_pluck",
   "music_box",
   "crystal_bowl",
-  "cosmic_laser"
+  "cosmic_laser",
+  "handpan_steel",
+  "celesta_chime"
 ]);
 
 export const SoundConfigSchema = z.object({
@@ -223,7 +352,7 @@ export const SoundConfigSchema = z.object({
     .default({}),
   /** how the pitch of a hit is picked */
   note_mapping: z
-    .enum(["melodic_step", "floor_level", "x_position", "lane_floor", "random"])
+    .enum(["melodic_step", "floor_level", "x_position", "lane_floor", "random", "index_degree"])
     .default("melodic_step"),
   quantizer: z
     .object({
@@ -288,13 +417,24 @@ export const BackgroundStyleSchema = z.enum([
   "cyber_grid",
   "aurora_gradient"
 ]);
-export const BallStyleSchema = z.enum(["glow", "neon_ring", "shaded_sphere", "sparkle_particle"]);
+export const BallStyleSchema = z.enum([
+  "glow",
+  "neon_ring",
+  "shaded_sphere",
+  "sparkle_particle",
+  "neon_cube",
+  "solid_cube"
+]);
+export const BallColorModeSchema = z.enum(["lane", "rainbow", "velocity"]);
+export const TowerHudStyleSchema = z.enum(["classic", "duel_cards"]);
 export const FloorStyleSchema = z.enum(["solid", "neon_laser", "glass_brick", "striped_warning"]);
 
 export const LookConfigSchema = z.object({
   background: hexColor.default("#060609"),
   background_style: BackgroundStyleSchema.default("solid"),
   ball_style: BallStyleSchema.default("glow"),
+  color_mode: BallColorModeSchema.default("lane"),
+  tower_hud_style: TowerHudStyleSchema.default("classic"),
   floor_style: FloorStyleSchema.default("solid"),
   vignette: z.number().min(0).max(1).default(0.35),
   chromatic_aberration: z.number().min(0).max(20).default(0),
@@ -383,7 +523,7 @@ export const RuleConfigSchema = z.object({
 /* ------------------------------------------------------------------ */
 export const ExportConfigSchema = z.object({
   video_mbps: z.number().min(2).max(40).default(14),
-  audio_kbps: z.number().min(96).max(320).default(256),
+  audio_kbps: z.number().min(96).max(320).default(192),
   filename: z.string().default("")
 });
 
@@ -410,6 +550,12 @@ export type SceneConfig = z.infer<typeof SceneConfigSchema>;
 export type TowerBreakerSceneConfig = z.infer<typeof TowerBreakerSceneSchema>;
 export type MazeEscapeSceneConfig = z.infer<typeof MazeEscapeSceneSchema>;
 export type AlgorithmArenaConfig = z.infer<typeof AlgorithmArenaSchema>;
+export type CubeArenaSceneConfig = z.infer<typeof CubeArenaSceneSchema>;
+export type OverflowBowlSceneConfig = z.infer<typeof OverflowBowlSceneSchema>;
+export type OpticalMirrorsSceneConfig = z.infer<typeof OpticalMirrorsSceneSchema>;
+export type PendulumWaveSceneConfig = z.infer<typeof PendulumWaveSceneSchema>;
+export type PolyOrbitSceneConfig = z.infer<typeof PolyOrbitSceneSchema>;
+export type PrismChamberSceneConfig = z.infer<typeof PrismChamberSceneSchema>;
 export type TowerLane = z.infer<typeof TowerLaneSchema>;
 export type MazeRing = z.infer<typeof MazeRingSchema>;
 export type SoundConfig = z.infer<typeof SoundConfigSchema>;
@@ -419,6 +565,8 @@ export type RuleAction = z.infer<typeof RuleActionSchema>;
 export type PaletteName = z.infer<typeof PaletteNameSchema>;
 export type BackgroundStyle = z.infer<typeof BackgroundStyleSchema>;
 export type BallStyle = z.infer<typeof BallStyleSchema>;
+export type BallColorMode = z.infer<typeof BallColorModeSchema>;
+export type TowerHudStyle = z.infer<typeof TowerHudStyleSchema>;
 export type FloorStyle = z.infer<typeof FloorStyleSchema>;
 
 /** Resolve the HP list of one lane (lane override > scene formula). */

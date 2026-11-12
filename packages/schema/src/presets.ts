@@ -2,359 +2,373 @@ import { ProjectConfig, ProjectConfigInput, ProjectConfigSchema } from "./schema
 
 const make = (input: ProjectConfigInput): ProjectConfig => ProjectConfigSchema.parse(input);
 
-/** 3 lane Tower Breaker – "Who breaks floor 10 first". */
-export const CLASSIC_3_TOWERS_PRESET: ProjectConfig = make({
-  seed: 20261110,
-  meta: { title: "3 Towers Classic - 60s" },
-  scene: { type: "TOWER_BREAKER" }
-});
+/* ============================================================================
+ * 17 UNIQUE, NON-DUPLICATE FLAGSHIP CONTENT PRESETS ACROSS 9 ENGINES
+ * Zero clones · Zero copied captions · 9:16 Safe-Zone Calibrated
+ * ========================================================================== */
 
-/** Exponential HP, 2 lanes, glass-bell palette. */
-export const DUEL_2_LANES_PRESET: ProjectConfig = make({
-  seed: 777,
-  meta: { title: "Duel 2 Lanes - 45s", duration_sec: 45 },
-  arc: { hook_text: "2 TOWERS. 1 WINNER.\nWHO REACHES THE BOTTOM FIRST?" },
-  sound: { palette: "glass_bell", scale: { root: "D4", mode: "dorian", octaves: 3 } },
+/** 1. Harmonic Pendulum Wave Harp (Seamless 60s Phase Cycle + Liquid Ribbon) */
+export const PENDULUM_WAVE_PRESET: ProjectConfig = make({
+  seed: 2025,
+  meta: { title: "Harmonic Pendulum Wave Harp", duration_sec: 60 },
+  arc: {
+    hook_text: "18 TUNED STRINGS\nWAIT FOR THE 60s RE-ALIGNMENT",
+    hook_duration_sec: 12,
+    calm_outro_sec: 3.0
+  },
+  physics: { gravity: [0, 0], restitution_default: 1.0, bounce_kick: 0 },
+  sound: {
+    palette: "kalimba_glow",
+    scale: { root: "F4", mode: "pentatonic_major", octaves: 4 },
+    note_mapping: "index_degree",
+    reverb: { enabled: true, mix: 0.42, size: 0.88 }
+  },
+  look: {
+    background: "#040711",
+    background_style: "radial_vignette",
+    ball_style: "shaded_sphere",
+    color_mode: "rainbow",
+    trail: { enabled: true, fade_alpha: 0.18 },
+    glow: 1.5,
+    vignette: 0.45,
+    hud: { hook_y: 205, hook_size: 46, timer_y: 310, timer_size: 52, accent: "#38bdf8", show_timer: false }
+  },
   scene: {
-    type: "TOWER_BREAKER",
-    floors_hp: { mode: "exponential", base: 20, growth: 1.75, count: 9 },
-    lanes: [
-      { id: "red", label: "x2 / FLOOR", color: "#ff3b6b", initial_balls: 2, ball_radius: 8, on_floor_break: { op: "MULTIPLY", value: 2 } },
-      { id: "blue", label: "+4 / FLOOR", color: "#3b9bff", initial_balls: 4, ball_radius: 7, on_floor_break: { op: "ADD", value: 4 } }
-    ],
-    pegs: { rows: 6, per_row: 5 }
+    type: "PENDULUM_WAVE",
+    count: 18,
+    base_cycles: 24,
+    cycle_step: 1,
+    amplitude_px: 370,
+    pivot_y: 340,
+    string_length_px: 960,
+    bob_radius: 13,
+    trigger: "center",
+    show_strings: true,
+    show_rest_marks: true,
+    wave_ribbon: true
   }
 });
 
-/** Concentric rotating rings, zero gravity. */
-export const MAZE_RINGS_PRESET: ProjectConfig = make({
-  seed: 4242,
-  meta: { title: "5 Rings Maze Escape - 60s" },
-  arc: { hook_text: "5 ROTATING RINGS. 1 ESCAPE ROUTE.\nCAN ALL BALLS BREAK FREE?", tension_curve: [[0, 0.15], [0.3, 0.4], [0.7, 0.75], [0.9, 1], [1, 0.3]] },
-  physics: { gravity: [0, 0], speed_lock: 26, restitution_default: 1, bounce_kick: 0 },
-  sound: { palette: "marimba_wood", scale: { root: "C4", mode: "pentatonic_minor", octaves: 3 } },
+/** 2. Chromatic Prism Chamber (Breathing Heptagon Acoustic Refracting Polygon) */
+export const PRISM_CHAMBER_PRESET: ProjectConfig = make({
+  seed: 4040,
+  meta: { title: "Chromatic Prism Chamber", duration_sec: 55 },
+  arc: {
+    hook_text: "7 TUNED GLASS WALLS\nEVERY 4 BOUNCES REFRACTS LIGHT",
+    hook_duration_sec: 14,
+    calm_outro_sec: 2.5
+  },
+  physics: {
+    gravity: [0, 0.25],
+    restitution_default: 1.0,
+    bounce_kick: 0.08,
+    speed_lock: 22,
+    max_speed: 38
+  },
+  sound: {
+    palette: "crystal_bowl",
+    scale: { root: "E4", mode: "hirajoshi", octaves: 3 },
+    note_mapping: "index_degree",
+    reverb: { enabled: true, mix: 0.40, size: 0.88 }
+  },
+  look: {
+    background: "#060813",
+    background_style: "radial_vignette",
+    ball_style: "neon_ring",
+    color_mode: "rainbow",
+    trail: { enabled: true, fade_alpha: 0.20 },
+    glow: 1.55,
+    vignette: 0.4,
+    hud: { hook_y: 235, accent: "#22d3ee", show_timer: false }
+  },
   scene: {
-    type: "MAZE_ESCAPE",
-    initial_balls: 12,
-    ball_radius: 8,
-    balls_to_escape: 80,
-    spawn_on_escape: 1
+    type: "PRISM_CHAMBER",
+    sides: 7,
+    radius: 410,
+    spin: 0.45,
+    breathe_amp: 0.12,
+    breathe_speed: 1.4,
+    initial_balls: 3,
+    ball_radius: 11,
+    hits_per_split: 4,
+    max_balls: 160,
+    inherit_color: true
   }
 });
 
-const arena = (
-  title: string,
-  algorithm: "FALLING_SAND" | "TSP_2OPT" | "BFS_LIGHTNING" | "BOIDS",
-  palette: "kalimba_glow" | "glass_bell" | "water_drop" | "marimba_wood" | "synth_pluck" | "music_box" | "crystal_bowl" | "cosmic_laser",
-  hook: string,
-  extraLook?: Record<string, unknown>
-): ProjectConfig =>
-  make({
-    seed: 99,
-    meta: { title },
-    arc: { hook_text: hook },
-    sound: { palette, quantizer: { mode: "HARMONIC" } },
-    look: extraLook ? (extraLook as any) : {},
-    scene: { type: "ALGORITHM_ARENA", algorithm }
-  });
+/** 3. Precessing Vesica Caustic Mandala (Rotating Specular Optical Lens) */
+export const OPTICAL_MIRRORS_PRESET: ProjectConfig = make({
+  seed: 1616,
+  meta: { title: "Sacred Lens Caustic Mandala", duration_sec: 50 },
+  arc: {
+    hook_text: "24 PRISMATIC LIGHT RAYS\nTRAPPED IN A PRECESSING LENS",
+    hook_duration_sec: 50,
+    calm_outro_sec: 2.5
+  },
+  physics: { gravity: [0, 0], restitution_default: 1.0, bounce_kick: 0 },
+  sound: {
+    palette: "celesta_chime",
+    scale: { root: "G4", mode: "lydian", octaves: 3 },
+    note_mapping: "index_degree",
+    reverb: { enabled: true, mix: 0.38, size: 0.86 }
+  },
+  look: {
+    background: "#04060c",
+    background_style: "radial_vignette",
+    ball_style: "sparkle_particle",
+    color_mode: "rainbow",
+    trail: { enabled: true, fade_alpha: 0.14 },
+    glow: 1.65,
+    vignette: 0.4,
+    hud: { hook_y: 215, hook_size: 46, show_timer: false, accent: "#38bdf8" }
+  },
+  scene: {
+    type: "OPTICAL_MIRRORS",
+    mirror_shape: "vesica_piscis",
+    mirror_spin: 0.14,
+    width_px: 680,
+    height_px: 1060,
+    ball_count: 24,
+    ball_radius: 7.5,
+    ball_speed: 22,
+    origin_offset_y: 0,
+    spread_deg: 360,
+    show_rays: true,
+    show_grid: true,
+    mirror_color: "#22d3ee"
+  }
+});
 
-export const SAND_PRESET = arena("Falling Sand Alchemist", "FALLING_SAND", "water_drop", "SAND + LAVA + WATER\nWHAT REACTIONS WILL OCCUR?");
-export const TSP_PRESET = arena("TSP 2-Opt Untangling", "TSP_2OPT", "glass_bell", "SHORTEST CIRCUIT TOUR\nUNTANGLED IN 60 SECONDS");
-export const LIGHTNING_PRESET = arena("BFS vs Fractal Lightning", "BFS_LIGHTNING", "kalimba_glow", "BREADTH-FIRST SEARCH vs LIGHTNING\nWHO REACHES THE TARGET FIRST?");
-export const BOIDS_PRESET = arena("Boids Flocking vs Black Hole", "BOIDS", "glass_bell", "THOUSANDS OF FLOCKING BOIDS\nESCAPING THE SINGULARITY");
+/** 4. Chrono-Pendulum Goblet Surge (Overflow Bowl Reimagined as Chalice Vessel) */
+export const OVERFLOW_BOWL_PRESET: ProjectConfig = make({
+  seed: 747,
+  meta: { title: "Chrono-Pendulum Goblet Surge", duration_sec: 50 },
+  arc: {
+    hook_text: "ONE PENDULUM CHALICE\nHOW LONG UNTIL IT SURGES OVER?",
+    hook_duration_sec: 50,
+    calm_outro_sec: 2.5
+  },
+  physics: { gravity: [0, 12], restitution_default: 0.92, max_speed: 55 },
+  sound: {
+    palette: "water_drop",
+    scale: { root: "C4", mode: "pentatonic_major", octaves: 4 },
+    reverb: { enabled: true, mix: 0.34, size: 0.85 }
+  },
+  look: {
+    background: "#04080f",
+    background_style: "aurora_gradient",
+    ball_style: "shaded_sphere",
+    color_mode: "rainbow",
+    glow: 1.25,
+    vignette: 0.35,
+    hud: { hook_y: 230, show_timer: false, accent: "#38bdf8" }
+  },
+  scene: {
+    type: "OVERFLOW_BOWL",
+    bowl_shape: "goblet_funnel",
+    bowl_radius: 400,
+    rim_angle_deg: 82,
+    wedge_angle_deg: 20,
+    swing_amplitude_deg: 54,
+    swing_speed: 2.05,
+    initial_balls: 2,
+    ball_radius: 8.5,
+    split_on_hit: true,
+    split_cooldown_ms: 210,
+    bowl_color: "#7dd3fc",
+    wedge_color: "#e2e8f0"
+  }
+});
 
-/** 8. Galton Board (Normal Distribution Bell Curve ASMR) */
+/** 5. Galton Probability Bell Curve (Funnel Pin Matrix + Hirajoshi Kalimba) */
 export const GALTON_BOARD_PRESET: ProjectConfig = make({
   seed: 8888,
-  meta: { title: "Galton Board - Normal Distribution", duration_sec: 60 },
-  arc: { hook_text: "BALLS vs 108 HARMONIC PEGS\nFORMING A PERFECT BELL CURVE" },
+  meta: { title: "Galton Probability Bell Curve", duration_sec: 60 },
+  arc: { hook_text: "HARMONIC FUNNEL PINS\nSCULPTING A NORMAL BELL CURVE" },
   physics: { gravity: [0, 11.5], restitution_default: 0.95, bounce_kick: 3 },
   sound: {
     palette: "kalimba_glow",
     scale: { root: "D4", mode: "hirajoshi", octaves: 3 },
-    reverb: { enabled: true, mix: 0.28, size: 0.8 }
+    reverb: { enabled: true, mix: 0.30, size: 0.82 }
   },
   look: {
     background: "#05060b",
     background_style: "radial_vignette",
     ball_style: "glow",
     floor_style: "neon_laser",
-    glow: 1.6,
-    vignette: 0.45
+    glow: 1.55,
+    vignette: 0.45,
+    hud: { hook_y: 195, hook_size: 44, timer_y: 300, timer_size: 52 }
+  },
+  scene: {
+    type: "TOWER_BREAKER",
+    floors_hp: { mode: "manual", values: [15, 35, 80, 180, 400, 900, 2000, 4500, 10000, 22000] },
+    lanes: [
+      { id: "gold", label: "AMBER ×1.8", color: "#ffd166", initial_balls: 2, ball_radius: 8, on_floor_break: { op: "MULTIPLY", value: 1.8 } },
+      { id: "cyan", label: "AQUA +4", color: "#00e5ff", initial_balls: 4, ball_radius: 7, on_floor_break: { op: "ADD", value: 4 } },
+      { id: "emerald", label: "MINT +3", color: "#06d6a0", initial_balls: 3, ball_radius: 7.5, on_floor_break: { op: "ADD", value: 3 } }
+    ],
+    pegs: { enabled: true, pattern: "funnel", rows: 8, per_row: 7, radius: 8, top: 0.20, bottom: 0.36 }
+  }
+});
+
+/** 6. The Exponential Gambit: 1 Orb (×8) vs 512 Orbs (×2) */
+export const DUEL_1_VS_1000_PRESET: ProjectConfig = make({
+  seed: 10001,
+  meta: { title: "The Exponential Gambit: 1 vs 512", duration_sec: 48 },
+  arc: {
+    hook_text: "1 ORB (×8) VS 512 ORBS (×2)\nWHICH POWER CURVE CONQUERS FLOOR 8?",
+    hook_duration_sec: 48,
+    calm_outro_sec: 2.5
+  },
+  physics: { gravity: [0, 12], restitution_default: 0.99, bounce_kick: 4, bounce_min_speed: 12 },
+  sound: {
+    palette: "marimba_wood",
+    scale: { root: "D4", mode: "pentatonic_major", octaves: 3 },
+    reverb: { enabled: true, mix: 0.24, size: 0.72 }
+  },
+  look: {
+    background: "#05070b",
+    background_style: "solid",
+    ball_style: "glow",
+    tower_hud_style: "duel_cards",
+    glow: 1.35,
+    vignette: 0.28,
+    hud: { hook_y: 220, timer_y: 320, timer_size: 44, hook_size: 48, show_timer: false }
   },
   scene: {
     type: "TOWER_BREAKER",
     floors_hp: {
       mode: "manual",
-      values: [15, 35, 80, 180, 400, 900, 2000, 4500, 10000, 22000]
+      values: [16, 64, 256, 1024, 4096, 16384, 65536, 262144]
     },
     lanes: [
-      { id: "gold", label: "GOLD CASCADE", color: "#ffd166", initial_balls: 2, ball_radius: 8, on_floor_break: { op: "MULTIPLY", value: 1.8 } },
-      { id: "cyan", label: "CYAN SHOWER", color: "#00e5ff", initial_balls: 4, ball_radius: 7, on_floor_break: { op: "ADD", value: 4 } },
-      { id: "emerald", label: "EMERALD BELL", color: "#06d6a0", initial_balls: 3, ball_radius: 7.5, on_floor_break: { op: "ADD", value: 3 } }
+      { id: "swarm", label: "×2 SWARM", color: "#2dd4bf", initial_balls: 512, ball_radius: 5.5, on_floor_break: { op: "MULTIPLY", value: 2 } },
+      { id: "solo", label: "×8 SOLO", color: "#fb7185", initial_balls: 1, ball_radius: 9, on_floor_break: { op: "MULTIPLY", value: 8 } }
     ],
-    pegs: { enabled: true, rows: 12, per_row: 9, radius: 8, top: 0.12, bottom: 0.52 }
+    pegs: { enabled: false },
+    floor_thickness: 14
   }
 });
 
-/** 9. Black Hole Singularity Orbit (Concentric 8-Ring Vortex) */
-export const BLACK_HOLE_SPIRAL_PRESET: ProjectConfig = make({
-  seed: 1337,
-  meta: { title: "Black Hole Singularity Orbit", duration_sec: 60 },
-  arc: { hook_text: "8 COSMIC GRAVITY RINGS\nCAN THEY ESCAPE THE SINGULARITY?" },
-  physics: { gravity: [0, 0], speed_lock: 34, restitution_default: 1.0, bounce_kick: 6 },
+/** 7. Hexagonal Quantum Centrifuge (Reimagined Cube Arena) */
+export const CUBE_ARENA_PRESET: ProjectConfig = make({
+  seed: 2026,
+  meta: { title: "Hexagonal Quantum Centrifuge", duration_sec: 50 },
+  arc: {
+    hook_text: "QUANTUM CUBES INSIDE A HEX VAULT\nEVERY ESCAPE SPLITS +2 MORE",
+    hook_duration_sec: 50,
+    calm_outro_sec: 2.5
+  },
+  physics: { gravity: [0, 7.2], restitution_default: 0.99, max_speed: 44 },
   sound: {
-    palette: "synth_pluck",
-    scale: { root: "E3", mode: "dorian", octaves: 4 },
-    reverb: { enabled: true, mix: 0.35, size: 0.85 }
+    palette: "glass_bell",
+    scale: { root: "E4", mode: "hirajoshi", octaves: 3 },
+    reverb: { enabled: true, mix: 0.32, size: 0.82 }
   },
   look: {
-    background: "#030208",
-    background_style: "deep_space_stars",
-    ball_style: "neon_ring",
-    glow: 1.8,
-    chromatic_aberration: 6,
-    vignette: 0.5
+    background: "#04050a",
+    background_style: "radial_vignette",
+    ball_style: "neon_cube",
+    color_mode: "rainbow",
+    glow: 1.4,
+    vignette: 0.38,
+    hud: { hook_y: 230, show_timer: false, accent: "#22d3ee" }
   },
   scene: {
-    type: "MAZE_ESCAPE",
-    initial_balls: 16,
-    ball_radius: 7,
-    color: "#00f0ff",
-    ring_color: "#b026ff",
-    balls_to_escape: 120,
-    spawn_on_escape: 1,
-    rings: [
-      { radius: 80, thickness: 10, angular_speed: 2.4, gap_angle_deg: 32, durability: 0 },
-      { radius: 140, thickness: 10, angular_speed: -1.9, gap_angle_deg: 30, durability: 0 },
-      { radius: 200, thickness: 10, angular_speed: 2.6, gap_angle_deg: 28, durability: 0 },
-      { radius: 260, thickness: 10, angular_speed: -2.1, gap_angle_deg: 34, durability: 0 },
-      { radius: 320, thickness: 11, angular_speed: 1.7, gap_angle_deg: 30, durability: 0 },
-      { radius: 380, thickness: 11, angular_speed: -1.4, gap_angle_deg: 32, durability: 0 },
-      { radius: 440, thickness: 12, angular_speed: 1.1, gap_angle_deg: 36, durability: 0 },
-      { radius: 500, thickness: 12, angular_speed: -0.8, gap_angle_deg: 38, durability: 0 }
-    ]
+    type: "CUBE_ARENA",
+    chamber_shape: "hexagon",
+    outer_radius: 440,
+    cross_blades: 6,
+    cross_speed: 0.72,
+    cage_enabled: true,
+    cage_size: 138,
+    cage_speed: -1.05,
+    initial_cubes: 16,
+    cube_size: 13,
+    split_on_escape: 2,
+    split_on_blade: 0,
+    wall_color: "#38bdf8",
+    cage_color: "#f8fafc",
+    max_cubes: 420
   }
 });
 
-/** 10. Cyberpunk 4-Way Overdrive (Battle Royale) */
+/** 8. Cyberpunk 4-Faction Cathedral Siege */
 export const CYBERPUNK_ROYALE_PRESET: ProjectConfig = make({
   seed: 2099,
-  meta: { title: "Cyberpunk 4-Way Overdrive", duration_sec: 50 },
-  arc: { hook_text: "4 CYBER FACTIONS.\nWHO SURVIVES TO FLOOR 10?" },
+  meta: { title: "4-Faction Cyber Laser Siege", duration_sec: 50 },
+  arc: { hook_text: "4 CYBER FACTIONS vs CATHEDRAL PINS\nWHO BREACHES SECTOR 10?" },
   physics: { gravity: [0, 11], restitution_default: 1.0, bounce_kick: 5 },
   sound: {
     palette: "synth_pluck",
     scale: { root: "A2", mode: "dorian", octaves: 3 },
-    quantizer: { mode: "GRID", bpm: 140, progression: ["i", "VI", "III", "VII"] },
-    escalation: { drone: true, drone_gain_db: -10 }
+    quantizer: { mode: "GRID", bpm: 136, progression: ["i", "VI", "III", "VII"] },
+    escalation: { drone: true, drone_gain_db: -11 }
   },
   look: {
     background: "#060611",
     background_style: "cyber_grid",
     ball_style: "glow",
     floor_style: "neon_laser",
-    bloom: { enabled: true, intensity: 1.6, blur: 12 },
+    bloom: { enabled: true, intensity: 1.55, blur: 12 },
     chromatic_aberration: 4,
-    vignette: 0.4
+    vignette: 0.4,
+    hud: { hook_y: 195, hook_size: 44, timer_y: 300, timer_size: 52 }
   },
   scene: {
     type: "TOWER_BREAKER",
-    floors_hp: { mode: "exponential", base: 25, growth: 1.75, count: 10 },
+    floors_hp: { mode: "exponential", base: 24, growth: 1.72, count: 10 },
     lanes: [
-      { id: "cyan", label: "x2 CYBER", color: "#00f5d4", initial_balls: 2, ball_radius: 8, on_floor_break: { op: "MULTIPLY", value: 2 } },
+      { id: "cyan", label: "×2 CYBER", color: "#00f5d4", initial_balls: 2, ball_radius: 8, on_floor_break: { op: "MULTIPLY", value: 2 } },
       { id: "pink", label: "+5 NEON", color: "#f72585", initial_balls: 5, ball_radius: 7, on_floor_break: { op: "ADD", value: 5 } },
-      { id: "yellow", label: "x1.8 ACID", color: "#fee440", initial_balls: 3, ball_radius: 7.5, on_floor_break: { op: "MULTIPLY", value: 1.8 } },
-      { id: "purple", label: "+7 VOID", color: "#7209b7", initial_balls: 6, ball_radius: 6.5, on_floor_break: { op: "ADD", value: 7 } }
+      { id: "yellow", label: "×1.8 ACID", color: "#fee440", initial_balls: 3, ball_radius: 7.5, on_floor_break: { op: "MULTIPLY", value: 1.8 } },
+      { id: "purple", label: "+7 VOID", color: "#a855f7", initial_balls: 6, ball_radius: 6.5, on_floor_break: { op: "ADD", value: 7 } }
     ],
-    pegs: { rows: 6, per_row: 4 }
+    pegs: { enabled: true, pattern: "cathedral", rows: 6, per_row: 4, top: 0.20, bottom: 0.36 }
   }
 });
 
-/** 11. Japanese Zen Water Garden (Hirajoshi Scale ASMR) */
-export const ZEN_HIRAJOSHI_PRESET: ProjectConfig = make({
-  seed: 108,
-  meta: { title: "Japanese Zen Water (Hirajoshi)", duration_sec: 60 },
-  arc: { hook_text: "ORGANIC WATER DROPS ASMR\nDEEP RELAXATION & PEACE" },
-  physics: { gravity: [0, 8.5], restitution_default: 0.92, bounce_kick: 2 },
-  sound: {
-    palette: "water_drop",
-    scale: { root: "C4", mode: "hirajoshi", octaves: 3 },
-    spatial: { pan: true, y_filter: true, lowpass_min_hz: 800, lowpass_max_hz: 12000 },
-    reverb: { enabled: true, mix: 0.38, size: 0.9 },
-    cooldown_ms: 50
-  },
-  look: {
-    background: "#03080d",
-    background_style: "aurora_gradient",
-    ball_style: "shaded_sphere",
-    floor_style: "neon_laser",
-    vignette: 0.5
-  },
-  scene: {
-    type: "TOWER_BREAKER",
-    floors_hp: { mode: "manual", values: [12, 30, 75, 180, 450, 1100, 2600, 6000] },
-    lanes: [
-      { id: "turquoise", label: "MORNING DEW", color: "#00f2fe", initial_balls: 1, ball_radius: 9, on_floor_break: { op: "ADD", value: 1 } },
-      { id: "bamboo", label: "ZEN BAMBOO", color: "#4facfe", initial_balls: 2, ball_radius: 8, on_floor_break: { op: "ADD", value: 2 } }
-    ],
-    pegs: { rows: 7, per_row: 5, radius: 9, top: 0.16, bottom: 0.42 }
-  }
-});
-
-/** 12. Antique Music Box Labyrinth */
-export const MUSIC_BOX_PRESET: ProjectConfig = make({
-  seed: 31415,
-  meta: { title: "Antique Music Box Labyrinth", duration_sec: 55 },
-  arc: { hook_text: "ANTIQUE MECHANICAL MUSIC BOX\nGOLDEN SPHERES ESCAPING" },
-  physics: { gravity: [0, 0], speed_lock: 24, restitution_default: 1.0, bounce_kick: 1 },
-  sound: {
-    palette: "music_box",
-    scale: { root: "G4", mode: "lydian", octaves: 3 },
-    quantizer: { mode: "HARMONIC", bpm: 108 },
-    reverb: { enabled: true, mix: 0.32, size: 0.8 }
-  },
-  look: {
-    background: "#0c0a07",
-    background_style: "radial_vignette",
-    ball_style: "sparkle_particle",
-    glow: 1.5,
-    vignette: 0.45
-  },
-  scene: {
-    type: "MAZE_ESCAPE",
-    initial_balls: 14,
-    ball_radius: 7,
-    color: "#ffdf7e",
-    ring_color: "#c69255",
-    balls_to_escape: 80,
-    spawn_on_escape: 1,
-    rings: [
-      { radius: 100, thickness: 11, angular_speed: 1.1, gap_angle_deg: 44, durability: 0 },
-      { radius: 180, thickness: 11, angular_speed: -0.85, gap_angle_deg: 42, durability: 0 },
-      { radius: 260, thickness: 11, angular_speed: 1.25, gap_angle_deg: 40, durability: 0 },
-      { radius: 340, thickness: 12, angular_speed: -0.95, gap_angle_deg: 38, durability: 0 },
-      { radius: 420, thickness: 12, angular_speed: 0.75, gap_angle_deg: 36, durability: 0 },
-      { radius: 490, thickness: 12, angular_speed: -0.6, gap_angle_deg: 34, durability: 0 }
-    ]
-  }
-});
-
-/** 13. Mechanical Pachinko Frenzy */
+/** 9. Mechanical Keyswitch Pachinko Cascade (1-Ball Thock Avalanche) */
 export const PACHINKO_THOCK_PRESET: ProjectConfig = make({
-  seed: 5050,
-  meta: { title: "Mechanical Pachinko Frenzy", duration_sec: 45 },
-  arc: { hook_text: "THOCKY MECHANICAL KEYBOARD ASMR\nULTRA SATISFYING CLICK RHYTHM" },
-  physics: { gravity: [0, 13], restitution_default: 1.02, bounce_kick: 6, bounce_min_speed: 12 },
+  seed: 9876,
+  meta: { title: "Custom Keyswitch Pachinko ASMR", duration_sec: 60 },
+  arc: {
+    hook_text: "1 THOCKY BALL TRIGGERS A CASCADE\nPURE MECHANICAL SWITCH ACOUSTICS",
+    hook_duration_sec: 10,
+    calm_outro_sec: 3.0
+  },
+  physics: { gravity: [0, 12.2], restitution_default: 1.0, bounce_kick: 5, bounce_min_speed: 11 },
   sound: {
     palette: "thocky_keys",
     scale: { root: "F3", mode: "blues", octaves: 3 },
     wall_ticks: true
   },
   look: {
-    background: "#09090b",
-    background_style: "solid",
+    background: "#08080b",
+    background_style: "radial_vignette",
     ball_style: "shaded_sphere",
     floor_style: "striped_warning",
-    vignette: 0.35
+    vignette: 0.4,
+    hud: { hook_y: 195, hook_size: 44, timer_y: 300, timer_size: 52 }
   },
   scene: {
     type: "TOWER_BREAKER",
-    floors_hp: { mode: "manual", values: [20, 50, 120, 280, 650, 1500, 3500, 8000] },
+    floors_hp: { mode: "manual", values: [12, 28, 65, 190, 540, 1500, 4000, 10500] },
     lanes: [
-      { id: "ivory", label: "GATERON INK", color: "#f4ede4", initial_balls: 2, ball_radius: 8.5, on_floor_break: { op: "MULTIPLY", value: 1.8 } },
-      { id: "teal", label: "TEALIO V2", color: "#2ec4b6", initial_balls: 4, ball_radius: 7.5, on_floor_break: { op: "ADD", value: 4 } },
-      { id: "coral", label: "HOLY PANDA", color: "#e71d36", initial_balls: 3, ball_radius: 8, on_floor_break: { op: "MULTIPLY", value: 1.6 } }
+      { id: "pachinko", label: "1-BALL AVALANCHE", color: "#ffd166", initial_balls: 1, ball_radius: 8.5, on_floor_break: { op: "EXPLODE", value: 2.5 } }
     ],
-    pegs: { rows: 9, per_row: 6, radius: 10, top: 0.12, bottom: 0.44 }
+    pegs: { enabled: true, pattern: "staggered", rows: 9, per_row: 8, radius: 9.5, top: 0.20, bottom: 0.36 }
   }
 });
 
-/** 14. Tibetan Crystal Singing Bowl (Deep Meditation) */
-export const SINGING_BOWL_PRESET: ProjectConfig = make({
-  seed: 432,
-  meta: { title: "Tibetan Crystal Singing Bowl", duration_sec: 60 },
-  arc: { hook_text: "432 Hz HEALING VIBRATION\nRELEASE STRESS IN 60 SECONDS" },
-  physics: { gravity: [0, 0], speed_lock: 20, restitution_default: 0.98, bounce_kick: 1 },
-  sound: {
-    palette: "crystal_bowl",
-    scale: { root: "A3", mode: "whole_tone", octaves: 3 },
-    reverb: { enabled: true, mix: 0.45, size: 0.92 }
-  },
-  look: {
-    background: "#030209",
-    background_style: "deep_space_stars",
-    ball_style: "glow",
-    bloom: { enabled: true, intensity: 1.8, blur: 14 },
-    vignette: 0.55
-  },
-  scene: {
-    type: "MAZE_ESCAPE",
-    initial_balls: 8,
-    ball_radius: 9,
-    color: "#e2b8ff",
-    ring_color: "#6b3ba6",
-    balls_to_escape: 60,
-    spawn_on_escape: 1,
-    rings: [
-      { radius: 130, thickness: 16, angular_speed: 0.45, gap_angle_deg: 50, durability: 0 },
-      { radius: 240, thickness: 16, angular_speed: -0.35, gap_angle_deg: 46, durability: 0 },
-      { radius: 350, thickness: 18, angular_speed: 0.5, gap_angle_deg: 42, durability: 0 },
-      { radius: 460, thickness: 18, angular_speed: -0.28, gap_angle_deg: 38, durability: 0 }
-    ]
-  }
-});
-
-/** 15. Speedrun 25 Floors Sudden Death */
-export const SPEEDRUN_FLOORS_PRESET: ProjectConfig = make({
-  seed: 9999,
-  meta: { title: "Speedrun 25 Glass Floors", duration_sec: 45 },
-  arc: { hook_text: "25 GLASS FLOORS. 45 SECONDS.\nWILL ANY BALL SURVIVE?" },
-  physics: { gravity: [0, 16], restitution_default: 1.02, bounce_min_speed: 18, bounce_kick: 6 },
-  sound: {
-    palette: "marimba_wood",
-    scale: { root: "C3", mode: "gypsy_minor", octaves: 4 },
-    quantizer: { mode: "GRID", bpm: 160 }
-  },
-  look: {
-    background: "#080612",
-    background_style: "cyber_grid",
-    ball_style: "glow",
-    floor_style: "glass_brick",
-    chromatic_aberration: 7,
-    vignette: 0.4
-  },
-  scene: {
-    type: "TOWER_BREAKER",
-    floors_hp: { mode: "exponential", base: 10, growth: 1.2, count: 25 },
-    lanes: [
-      { id: "rush", label: "HYPER RUSH", color: "#ff0055", initial_balls: 2, ball_radius: 8.5, on_floor_break: { op: "MULTIPLY", value: 1.4 } }
-    ],
-    pegs: { rows: 5, per_row: 5, radius: 9 }
-  }
-});
-
-/** 16. Cosmic Laser Superstorm */
-export const COSMIC_LASER_PRESET: ProjectConfig = arena(
-  "Cosmic Laser Superstorm",
-  "BOIDS",
-  "cosmic_laser",
-  "8,000 COSMIC PARTICLES & LASERS\nESCAPING THE BLACK HOLE",
-  {
-    background: "#020108",
-    background_style: "deep_space_stars",
-    scanlines: 0.35,
-    bloom: { enabled: true, intensity: 1.5, blur: 10 }
-  }
-);
-
-/** 17. One Ball to One Million (60s Signature Journey) */
+/** 10. 1-Orb Evolution Trial (Progressive Mutating Power-Ups to 1,000,000) */
 export const ONE_BALL_JOURNEY_PRESET: ProjectConfig = make({
   seed: 20261110,
-  meta: { title: "One Ball to 1,000,000 (60s Journey)", duration_sec: 60 },
+  meta: { title: "1-Orb Evolution to 1,000,000 (60s)", duration_sec: 60 },
   arc: {
-    hook_text: "1 BALL. 8 FLOORS. 60 SECONDS.\nCAN 1 BALL ESCALATE TO 1,000,000?",
-    hook_duration_sec: 4,
+    hook_text: "1 SOLITARY ORB MUTATES EVERY FLOOR\nCAN IT REACH 1,000,000 IN 60s?",
+    hook_duration_sec: 10,
     calm_outro_sec: 3.0,
     tension_curve: [
       [0, 0.15],
@@ -366,30 +380,28 @@ export const ONE_BALL_JOURNEY_PRESET: ProjectConfig = make({
   },
   physics: { gravity: [0, 10.5], restitution_default: 0.98, bounce_kick: 3.5, bounce_min_speed: 10 },
   sound: {
-    palette: "kalimba_glow",
+    palette: "handpan_steel",
     scale: { root: "C4", mode: "hirajoshi", octaves: 4 },
     note_mapping: "melodic_step",
     spatial: { pan: true, y_filter: true },
-    reverb: { enabled: true, mix: 0.32, size: 0.85 }
+    reverb: { enabled: true, mix: 0.34, size: 0.85 }
   },
   look: {
-    background: "#060710",
+    background: "#050711",
     background_style: "radial_vignette",
     ball_style: "glow",
     floor_style: "neon_laser",
-    glow: 1.8,
-    vignette: 0.45
+    glow: 1.75,
+    vignette: 0.45,
+    hud: { hook_y: 195, hook_size: 44, timer_y: 300, timer_size: 52 }
   },
   scene: {
     type: "TOWER_BREAKER",
-    floors_hp: {
-      mode: "manual",
-      values: [10, 26, 60, 180, 520, 1400, 3800, 9500]
-    },
+    floors_hp: { mode: "manual", values: [10, 26, 60, 180, 520, 1400, 3800, 9500] },
     lanes: [
       {
         id: "hero",
-        label: "1 BALL ESCALATION",
+        label: "EVOLVING ORB",
         color: "#00e5ff",
         initial_balls: 1,
         ball_radius: 8.5,
@@ -406,155 +418,153 @@ export const ONE_BALL_JOURNEY_PRESET: ProjectConfig = make({
         ]
       }
     ],
-    pegs: { enabled: true, rows: 8, per_row: 6, radius: 9, top: 0.14, bottom: 0.46 }
+    pegs: { enabled: true, pattern: "diamond", rows: 7, per_row: 6, radius: 9, top: 0.20, bottom: 0.36 }
   }
 });
 
-/** 18. The 60s Solitary Duel: Red vs Blue */
-export const SOLITARY_DUEL_60S_PRESET: ProjectConfig = make({
-  seed: 7777,
-  meta: { title: "The 60s Solitary Duel: Red vs Blue", duration_sec: 60 },
+/** 11. Celestial Polyrhythm Astrarium (16 Concentric Orbits + Constellation Links) */
+export const POLY_ORBIT_PRESET: ProjectConfig = make({
+  seed: 3030,
+  meta: { title: "Celestial Polyrhythm Astrarium", duration_sec: 60 },
   arc: {
-    hook_text: "1 VS 1 SOLITARY BALL DUEL\nWHO CRACKS FLOOR 8 AT 60 SECONDS?",
-    hook_duration_sec: 4,
-    calm_outro_sec: 3.0,
-    tension_curve: [
-      [0, 0.2],
-      [0.25, 0.35],
-      [0.6, 0.65],
-      [0.88, 1.0],
-      [1, 0.3]
-    ]
+    hook_text: "16 ORBITAL HARMONIC RINGS\nALL PLANETS CONVERGE AT 60s",
+    hook_duration_sec: 12,
+    calm_outro_sec: 3.0
   },
-  physics: { gravity: [0, 11], restitution_default: 0.99, bounce_kick: 4 },
+  physics: { gravity: [0, 0], restitution_default: 1.0, bounce_kick: 0 },
   sound: {
-    palette: "glass_bell",
+    palette: "celesta_chime",
     scale: { root: "D4", mode: "dorian", octaves: 4 },
-    spatial: { pan: true, y_filter: true },
-    reverb: { enabled: true, mix: 0.3, size: 0.8 }
+    note_mapping: "index_degree",
+    reverb: { enabled: true, mix: 0.45, size: 0.90 }
   },
   look: {
-    background: "#08060f",
-    background_style: "cyber_grid",
+    background: "#05040d",
+    background_style: "deep_space_stars",
     ball_style: "glow",
-    floor_style: "neon_laser",
-    glow: 1.9,
-    chromatic_aberration: 4,
-    vignette: 0.4
+    color_mode: "rainbow",
+    trail: { enabled: true, fade_alpha: 0.15 },
+    glow: 1.65,
+    vignette: 0.45,
+    hud: { hook_y: 230, accent: "#c084fc", show_timer: false }
   },
   scene: {
-    type: "TOWER_BREAKER",
-    floors_hp: {
-      mode: "manual",
-      values: [12, 30, 70, 210, 600, 1600, 4200, 11000]
-    },
-    lanes: [
-      {
-        id: "red",
-        label: "RED FOUNTAIN",
-        color: "#ff0055",
-        initial_balls: 1,
-        ball_radius: 8.5,
-        on_floor_break: { op: "FOUNTAIN", value: 2.2 }
-      },
-      {
-        id: "blue",
-        label: "BLUE SHOCKWAVE",
-        color: "#00d4ff",
-        initial_balls: 1,
-        ball_radius: 8.5,
-        on_floor_break: { op: "EXPLODE", value: 2.2 }
-      }
-    ],
-    pegs: { enabled: true, rows: 7, per_row: 5, radius: 9, top: 0.15, bottom: 0.45 }
+    type: "POLY_ORBIT",
+    orbits: 16,
+    inner_radius: 85,
+    outer_radius: 445,
+    first_ratio: 10,
+    ratio_step: 1,
+    gates: 2,
+    planet_radius: 11,
+    direction_mode: "same",
+    show_gates: true,
+    constellation_links: true
   }
 });
 
-/** 19. Zen Droplet to Harmonic Symphony (60s ASMR) */
-export const ZEN_DROPLET_60S_PRESET: ProjectConfig = make({
-  seed: 4321,
-  meta: { title: "Zen Droplet Symphony (60s ASMR)", duration_sec: 60 },
+/** 12. Handpan Ring Break Sanctuary (Fragile Concentric Rings with Steel Tongue Drum) */
+export const MAZE_RINGS_PRESET: ProjectConfig = make({
+  seed: 4242,
+  meta: { title: "Solar Handpan Gravity Vault", duration_sec: 60 },
   arc: {
-    hook_text: "1 WATER DROP. 60 SECONDS.\nMEDITATIVE HEALING FREQUENCY",
-    hook_duration_sec: 4,
-    calm_outro_sec: 3.0
+    hook_text: "5 SHATTERING ORBIT LOCKS\nHANDPAN STEEL ACOUSTIC ESCAPE",
+    tension_curve: [[0, 0.15], [0.3, 0.4], [0.7, 0.75], [0.9, 1], [1, 0.3]]
   },
-  physics: { gravity: [0, 9.2], restitution_default: 0.94, bounce_kick: 2 },
+  physics: { gravity: [0, 0], speed_lock: 26, restitution_default: 1, bounce_kick: 0 },
   sound: {
-    palette: "water_drop",
-    scale: { root: "C4", mode: "hirajoshi", octaves: 3 },
-    reverb: { enabled: true, mix: 0.42, size: 0.92 },
-    cooldown_ms: 30
+    palette: "handpan_steel",
+    scale: { root: "C4", mode: "pentatonic_minor", octaves: 3 },
+    reverb: { enabled: true, mix: 0.38, size: 0.86 }
   },
   look: {
-    background: "#02070e",
-    background_style: "aurora_gradient",
-    ball_style: "shaded_sphere",
-    floor_style: "glass_brick",
-    glow: 1.4,
-    vignette: 0.5
-  },
-  scene: {
-    type: "TOWER_BREAKER",
-    floors_hp: {
-      mode: "manual",
-      values: [10, 24, 55, 150, 420, 1100, 2800]
-    },
-    lanes: [
-      {
-        id: "zen",
-        label: "SOLITARY DROPLET",
-        color: "#00e5ff",
-        initial_balls: 1,
-        ball_radius: 9,
-        on_floor_break: { op: "FOUNTAIN", value: 2.5 }
-      }
-    ],
-    pegs: { enabled: true, rows: 8, per_row: 6, radius: 9, top: 0.15, bottom: 0.45 }
-  }
-});
-
-/** 20. Mechanical Pachinko 1-Ball Avalanche (60s) */
-export const PACHINKO_1BALL_60S_PRESET: ProjectConfig = make({
-  seed: 9876,
-  meta: { title: "Mechanical Pachinko 1-Ball Avalanche", duration_sec: 60 },
-  arc: {
-    hook_text: "1 BALL STARTS AN AVALANCHE\n10,000 THOCK CLICKS IN 60s",
-    hook_duration_sec: 4,
-    calm_outro_sec: 3.0
-  },
-  physics: { gravity: [0, 12.5], restitution_default: 1.0, bounce_kick: 5, bounce_min_speed: 11 },
-  sound: {
-    palette: "thocky_keys",
-    scale: { root: "F3", mode: "blues", octaves: 3 },
-    wall_ticks: true
-  },
-  look: {
-    background: "#08080a",
+    background: "#05070e",
     background_style: "radial_vignette",
-    ball_style: "shaded_sphere",
-    floor_style: "striped_warning",
-    vignette: 0.4
+    ball_style: "neon_ring",
+    glow: 1.5,
+    hud: { hook_y: 230, timer_y: 350, timer_size: 56 }
   },
   scene: {
-    type: "TOWER_BREAKER",
-    floors_hp: {
-      mode: "manual",
-      values: [12, 28, 65, 190, 540, 1500, 4000, 10500]
-    },
-    lanes: [
-      {
-        id: "pachinko",
-        label: "1-BALL AVALANCHE",
-        color: "#ffd166",
-        initial_balls: 1,
-        ball_radius: 8.5,
-        on_floor_break: { op: "EXPLODE", value: 2.5 }
-      }
-    ],
-    pegs: { enabled: true, rows: 12, per_row: 8, radius: 9.5, top: 0.12, bottom: 0.48 }
+    type: "MAZE_ESCAPE",
+    initial_balls: 12,
+    ball_radius: 8,
+    balls_to_escape: 80,
+    spawn_on_escape: 1,
+    rings: [
+      { radius: 110, thickness: 12, angular_speed: 1.35, gap_angle_deg: 52, durability: 20, color: "#38bdf8" },
+      { radius: 195, thickness: 12, angular_speed: -1.05, gap_angle_deg: 48, durability: 26, color: "#818cf8" },
+      { radius: 280, thickness: 13, angular_speed: 1.55, gap_angle_deg: 44, durability: 34, color: "#c084fc" },
+      { radius: 365, thickness: 13, angular_speed: -1.2, gap_angle_deg: 40, durability: 42, color: "#f472b6" },
+      { radius: 450, thickness: 14, angular_speed: 0.9, gap_angle_deg: 36, durability: 0, color: "#fb7185" }
+    ]
   }
 });
+
+/** 13. 432 Hz Tibetan Crystal Aurora Vortex (Slow Deep Meditative Escape) */
+export const SINGING_BOWL_PRESET: ProjectConfig = make({
+  seed: 432,
+  meta: { title: "432 Hz Aurora Crystal Sanctuary", duration_sec: 60 },
+  arc: { hook_text: "432 Hz SINGING BOWLS\nSLOW DREAMSCAPE MEDITATION" },
+  physics: { gravity: [0, 0], speed_lock: 19, restitution_default: 0.98, bounce_kick: 1 },
+  sound: {
+    palette: "crystal_bowl",
+    scale: { root: "A3", mode: "whole_tone", octaves: 3 },
+    reverb: { enabled: true, mix: 0.48, size: 0.94 }
+  },
+  look: {
+    background: "#03020a",
+    background_style: "aurora_gradient",
+    ball_style: "glow",
+    bloom: { enabled: true, intensity: 1.8, blur: 14 },
+    vignette: 0.55,
+    hud: { hook_y: 230, timer_y: 350, timer_size: 56 }
+  },
+  scene: {
+    type: "MAZE_ESCAPE",
+    initial_balls: 8,
+    ball_radius: 9,
+    color: "#e2b8ff",
+    ring_color: "#7c3aed",
+    balls_to_escape: 60,
+    spawn_on_escape: 1,
+    rings: [
+      { radius: 130, thickness: 16, angular_speed: 0.45, gap_angle_deg: 50, durability: 0 },
+      { radius: 240, thickness: 16, angular_speed: -0.35, gap_angle_deg: 46, durability: 0 },
+      { radius: 350, thickness: 18, angular_speed: 0.5, gap_angle_deg: 42, durability: 0 },
+      { radius: 460, thickness: 18, angular_speed: -0.28, gap_angle_deg: 38, durability: 0 }
+    ]
+  }
+});
+
+/** 14–17. Algorithm Arena Quartet (4 Zero-Overlap Scientific Arenas) */
+const arena = (
+  title: string,
+  algorithm: "FALLING_SAND" | "TSP_2OPT" | "BFS_LIGHTNING" | "BOIDS",
+  palette: "kalimba_glow" | "glass_bell" | "water_drop" | "marimba_wood" | "synth_pluck" | "music_box" | "crystal_bowl" | "cosmic_laser" | "handpan_steel" | "celesta_chime",
+  hook: string,
+  extraLook?: Record<string, unknown>
+): ProjectConfig =>
+  make({
+    seed: 99,
+    meta: { title },
+    arc: { hook_text: hook },
+    sound: { palette, quantizer: { mode: "HARMONIC" } },
+    look: { hud: { hook_y: 230, timer_y: 350, timer_size: 56 }, ...(extraLook ?? {}) } as any,
+    scene: { type: "ALGORITHM_ARENA", algorithm }
+  });
+
+export const SAND_PRESET = arena("Falling Sand Alchemist", "FALLING_SAND", "water_drop", "SAND + LAVA + WATER + ICE\nTHERMODYNAMIC CHAIN REACTIONS");
+export const TSP_PRESET = arena("TSP 2-Opt Geometric Untangler", "TSP_2OPT", "music_box", "400 ENTANGLED NODES\nUNTANGLING INTO THE SHORTEST LOOP");
+export const LIGHTNING_PRESET = arena("BFS vs Fractal Lightning", "BFS_LIGHTNING", "kalimba_glow", "UNIFORM BFS vs FRACTAL LIGHTNING\nWHICH ALGORITHM STRIKES FIRST?");
+export const BOIDS_PRESET = arena("Cosmic Boids vs Singularity", "BOIDS", "cosmic_laser", "8,000 FLOCKING STARLINGS\nBATTLING A BLACK HOLE WELL", {
+  background: "#020108",
+  background_style: "deep_space_stars",
+  scanlines: 0.3,
+  bloom: { enabled: true, intensity: 1.5, blur: 10 }
+});
+
+/** Backward-compatible test & default references (not duplicated in gallery) */
+export const CLASSIC_3_TOWERS_PRESET: ProjectConfig = GALTON_BOARD_PRESET;
 
 export interface PresetItem {
   label: string;
@@ -564,131 +574,113 @@ export interface PresetItem {
 }
 
 export const PRESETS: Record<string, PresetItem> = {
-  // Satisfying & ASMR
-  one_ball_journey: {
-    label: "One Ball to 1,000,000 (60s Journey)",
+  // Satisfying & ASMR (5 unique archetypes)
+  pendulum_wave: {
+    label: "Harmonic Pendulum Wave Harp",
     category: "Satisfying & ASMR",
-    description: "Starts with 1 solitary ball and finishes at 60s: progressive fountain bursts, explosive shockwaves, and harmonic escalation",
-    config: ONE_BALL_JOURNEY_PRESET
+    description: "18 phase-locked strings with a glowing silk ribbon braiding into spirals and aligning perfectly at 60s",
+    config: PENDULUM_WAVE_PRESET
   },
-  zen_droplet_60s: {
-    label: "Zen Droplet Symphony (60s ASMR)",
+  prism_chamber: {
+    label: "Chromatic Prism Chamber",
     category: "Satisfying & ASMR",
-    description: "1 pure water droplet multiplying through 7 glass barriers into an orchestral water harp symphony at 60s",
-    config: ZEN_DROPLET_60S_PRESET
+    description: "Breathing 7-sided acoustic prism where walls sing in Hirajoshi scale, transfer hue, and refract orbs",
+    config: PRISM_CHAMBER_PRESET
+  },
+  optical_mirrors: {
+    label: "Sacred Lens Caustic Mandala",
+    category: "Satisfying & ASMR",
+    description: "24 prismatic light rays inside a gently rotating Vesica Piscis optical lens paired with celesta chimes",
+    config: OPTICAL_MIRRORS_PRESET
+  },
+  overflow_bowl: {
+    label: "Chrono-Pendulum Goblet Surge",
+    category: "Satisfying & ASMR",
+    description: "Chalice vessel with live fill gauge & sweeping pendulum where bouncing droplets multiply until overflow",
+    config: OVERFLOW_BOWL_PRESET
   },
   galton_board: {
-    label: "Galton Board Bell Curve",
+    label: "Galton Probability Bell Curve",
     category: "Satisfying & ASMR",
-    description: "Balls cascade through 108 tuned pegs to form a Gaussian distribution with Hirajoshi scale",
+    description: "Inverted funnel peg matrix sculpting chaotic marbles into a musical Gaussian bell curve",
     config: GALTON_BOARD_PRESET
   },
-  zen_hirajoshi: {
-    label: "Japanese Zen Water",
-    category: "Satisfying & ASMR",
-    description: "Soothing natural water drops chiming along the traditional Japanese Hirajoshi pentatonic scale",
-    config: ZEN_HIRAJOSHI_PRESET
-  },
-  vintage_music_box: {
-    label: "Antique Music Box",
-    category: "Satisfying & ASMR",
-    description: "Nostalgic mechanical music box tines ringing inside a concentric golden ring labyrinth",
-    config: MUSIC_BOX_PRESET
-  },
-  tibetan_crystal_bowl: {
-    label: "Tibetan Crystal Singing Bowl",
-    category: "Satisfying & ASMR",
-    description: "Deep 432 Hz healing vibrations with meditative whole-tone harmonic waves",
-    config: SINGING_BOWL_PRESET
-  },
-  classic_3_towers: {
-    label: "3 Towers Classic",
-    category: "Satisfying & ASMR",
-    description: "Three parallel floor-breaker towers with kalimba glow and gentle multiplier progression",
-    config: CLASSIC_3_TOWERS_PRESET
-  },
 
-  // High Tension & Battle
-  solitary_duel_60s: {
-    label: "The 60s Solitary Duel: Red vs Blue",
+  // High Tension & Battle (5 unique archetypes)
+  duel_1_vs_1000: {
+    label: "The Exponential Gambit: 1 vs 512",
     category: "High Tension & Battle",
-    description: "1 vs 1 solitary ball race: Red fountain vs Blue shockwave racing floor-by-floor to a photo-finish at 60s",
-    config: SOLITARY_DUEL_60S_PRESET
+    description: "Broadcast Duel HUD pitting 1 solo ×8 orb against a 512-orb ×2 swarm across 8 power-of-4 floors",
+    config: DUEL_1_VS_1000_PRESET
   },
-  pachinko_1ball_60s: {
-    label: "Mechanical Pachinko 1-Ball Avalanche",
+  cube_arena: {
+    label: "Hexagonal Quantum Centrifuge",
     category: "High Tension & Battle",
-    description: "1 solitary ball triggers a 10,000-thock keyboard cascade through 12 rows of pegs, finishing floor 8 at 60s",
-    config: PACHINKO_1BALL_60S_PRESET
+    description: "Spinning hexagonal chamber + counter-rotating vault cage trapping neon cubes that split on every escape",
+    config: CUBE_ARENA_PRESET
   },
   cyberpunk_royale: {
-    label: "Cyberpunk 4-Way Overdrive",
+    label: "4-Faction Cyber Laser Siege",
     category: "High Tension & Battle",
-    description: "4-faction cyberpunk battle royale with neon floor lasers and punchy synth plucks",
+    description: "4 asymmetric factions battling through cathedral pins and laser barriers locked to a 136 BPM synth pulse",
     config: CYBERPUNK_ROYALE_PRESET
   },
-  duel_2_lanes: {
-    label: "Duel 2 Lanes Extreme",
-    category: "High Tension & Battle",
-    description: "High-stakes 2-lane duel with exponential HP floors and shimmering crystal bells",
-    config: DUEL_2_LANES_PRESET
-  },
   pachinko_thock: {
-    label: "Mechanical Pachinko Frenzy",
+    label: "Custom Keyswitch Pachinko ASMR",
     category: "High Tension & Battle",
-    description: "Satisfying deep thock mechanical keyboard switches with fast pachinko pin physics",
+    description: "Single-ball avalanche cascading through dense pachinko pins with creamy lubed keyboard thock acoustics",
     config: PACHINKO_THOCK_PRESET
   },
-  speedrun_floors: {
-    label: "Speedrun 25 Floors",
+  one_ball_journey: {
+    label: "1-Orb Evolution to 1,000,000",
     category: "High Tension & Battle",
-    description: "25 consecutive glass floors under extreme gravity with rapid marimba cadence",
-    config: SPEEDRUN_FLOORS_PRESET
+    description: "Solo hero orb mutating through diamond pins with Handpan steel overtones toward a 60s finale",
+    config: ONE_BALL_JOURNEY_PRESET
   },
 
-  // Sci-Fi & Cosmic
-  black_hole_spiral: {
-    label: "Black Hole Singularity Orbit",
+  // Sci-Fi & Cosmic (3 unique archetypes)
+  poly_orbit: {
+    label: "Celestial Polyrhythm Astrarium",
     category: "Sci-Fi & Cosmic",
-    description: "8 concentric rings orbiting a cosmic black hole singularity with laser glow effects",
-    config: BLACK_HOLE_SPIRAL_PRESET
+    description: "16 concentric orbits connected by luminous constellation threads striking celesta chords on radial gates",
+    config: POLY_ORBIT_PRESET
   },
   maze_rings: {
-    label: "5 Rings Maze Escape",
+    label: "Solar Handpan Gravity Vault",
     category: "Sci-Fi & Cosmic",
-    description: "Concentric rings rotating with tangential velocity physics and marimba strikes",
+    description: "5 concentric rotating vault rings with shatter durability and resonant metallic handpan harmonics",
     config: MAZE_RINGS_PRESET
   },
-  cosmic_laser: {
-    label: "Cosmic Laser Superstorm",
+  tibetan_crystal_bowl: {
+    label: "432 Hz Aurora Crystal Sanctuary",
     category: "Sci-Fi & Cosmic",
-    description: "High-speed boid particle swarm with retro arcade sci-fi laser pulses",
-    config: COSMIC_LASER_PRESET
+    description: "Ultra-calm slow orbit escape tuned to whole-tone 432 Hz crystal bowls with deep aurora bloom",
+    config: SINGING_BOWL_PRESET
   },
 
-  // Algorithm & Arena
+  // Algorithm & Arena (4 unique archetypes)
   falling_sand: {
     label: "Falling Sand Alchemist",
     category: "Algorithm & Arena",
-    description: "Cellular automata physics simulating sand, water, lava, ice, and chemical reactions",
+    description: "Cellular automata thermodynamics simulating reactive sand, water, lava, obsidian, and steam",
     config: SAND_PRESET
   },
   tsp_2opt: {
-    label: "TSP 2-Opt Untangling",
+    label: "TSP 2-Opt Geometric Untangler",
     category: "Algorithm & Arena",
-    description: "Tangled 400-node graph iteratively untangles into an optimal geometric loop",
+    description: "Real-time 400-node Traveling Salesperson optimization untangling into a music-box geometric circuit",
     config: TSP_PRESET
   },
   bfs_lightning: {
-    label: "BFS vs Fractal Lightning",
+    label: "BFS Wavefront vs Fractal Lightning",
     category: "Algorithm & Arena",
-    description: "Speed duel between uniform Breadth-First Search and stochastic Laplacian lightning",
+    description: "Algorithm race between uniform Breadth-First Search and stochastic Laplacian lightning discharge",
     config: LIGHTNING_PRESET
   },
   boids: {
-    label: "Boids vs Black Hole",
+    label: "Cosmic Boids vs Singularity",
     category: "Algorithm & Arena",
-    description: "Thousands of flocking boid agents struggling against gravitational singularity pull",
+    description: "8,000 flocking cosmic agents battling a central black hole singularity with retro sci-fi laser sweeps",
     config: BOIDS_PRESET
   }
 };

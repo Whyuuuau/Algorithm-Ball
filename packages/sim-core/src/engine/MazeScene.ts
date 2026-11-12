@@ -307,16 +307,16 @@ export class MazeScene implements Scene {
         this.speedMult = Math.max(-4, Math.min(4, this.speedMult * (action.value ?? 1.25)));
         break;
       case "SHAKE": {
-        const calmOutroSec = ctx.config.arc.calm_outro_sec ?? 3.0;
-        const remainingSec = Math.max(0, ctx.config.meta.duration_sec - this.frame * ctx.dt);
+        const calmOutroSec = this.ctx.config.arc.calm_outro_sec ?? 3.0;
+        const remainingSec = Math.max(0, this.ctx.config.meta.duration_sec - this.frame * this.ctx.dt);
         if (calmOutroSec <= 0 || remainingSec > calmOutroSec) {
           this.shakeAmt = Math.max(this.shakeAmt, action.value ?? 1);
         }
         break;
       }
       case "FLASH": {
-        const calmOutroSec = ctx.config.arc.calm_outro_sec ?? 3.0;
-        const remainingSec = Math.max(0, ctx.config.meta.duration_sec - this.frame * ctx.dt);
+        const calmOutroSec = this.ctx.config.arc.calm_outro_sec ?? 3.0;
+        const remainingSec = Math.max(0, this.ctx.config.meta.duration_sec - this.frame * this.ctx.dt);
         if (calmOutroSec <= 0 || remainingSec > calmOutroSec) {
           this.flashAmt = Math.max(this.flashAmt, action.value ?? 1);
         }

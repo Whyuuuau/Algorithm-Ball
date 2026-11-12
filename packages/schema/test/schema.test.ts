@@ -8,14 +8,20 @@ import {
 } from "../src/index.js";
 
 describe("@asmr/schema", () => {
-  it("validates all 7 built-in presets against ProjectConfigSchema", () => {
+  it("validates all built-in presets against ProjectConfigSchema with zero duplicate titles or hooks", () => {
     const entries = Object.values(PRESETS);
-    expect(entries.length).toBeGreaterThanOrEqual(7);
+    expect(entries.length).toBeGreaterThanOrEqual(17);
+    const titles = new Set<string>();
+    const hooks = new Set<string>();
     for (const entry of entries) {
       const parsed = parseProjectConfig(entry.config);
       expect(parsed.version).toBe("2.0");
       expect(parsed.meta.width).toBe(1080);
       expect(parsed.meta.height).toBe(1920);
+      expect(titles.has(parsed.meta.title)).toBe(false);
+      expect(hooks.has(parsed.arc.hook_text)).toBe(false);
+      titles.add(parsed.meta.title);
+      hooks.add(parsed.arc.hook_text);
     }
   });
 

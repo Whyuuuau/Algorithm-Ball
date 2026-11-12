@@ -20,6 +20,10 @@ export class BallPool {
   public readonly heat: Float32Array;
   /** maze ring level (number of rings already crossed) */
   public readonly lvl: Uint16Array;
+  /** rotation angle in radians (used for cubes / tumbling shapes) */
+  public readonly rot: Float32Array;
+  /** per-entity hue (0..360) for rainbow palettes */
+  public readonly hue: Float32Array;
 
   constructor(cap: number) {
     this.cap = cap;
@@ -33,6 +37,8 @@ export class BallPool {
     this.lane = new Uint8Array(cap);
     this.heat = new Float32Array(cap);
     this.lvl = new Uint16Array(cap);
+    this.rot = new Float32Array(cap);
+    this.hue = new Float32Array(cap);
   }
 
   public clear(): void {
@@ -57,6 +63,8 @@ export class BallPool {
     this.lane[i] = lane;
     this.heat[i] = 0;
     this.lvl[i] = 0;
+    this.rot[i] = 0;
+    this.hue[i] = (i * 137.508) % 360;
     return i;
   }
 

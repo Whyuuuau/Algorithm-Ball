@@ -61,7 +61,16 @@ export interface SimSnapshot {
   frame: number;
   timeSec: number;
   totalFrames: number;
-  sceneType: "TOWER_BREAKER" | "MAZE_ESCAPE" | "ALGORITHM_ARENA";
+  sceneType:
+    | "TOWER_BREAKER"
+    | "MAZE_ESCAPE"
+    | "ALGORITHM_ARENA"
+    | "CUBE_ARENA"
+    | "OVERFLOW_BOWL"
+    | "OPTICAL_MIRRORS"
+    | "PENDULUM_WAVE"
+    | "POLY_ORBIT"
+    | "PRISM_CHAMBER";
   pool: BallPool;
   virtualTotal: number;
   laneVirtual: number[];
@@ -84,5 +93,14 @@ export interface SimSnapshot {
   arenaHud: ArenaHudStat[];
   progress: number;
   hash: number;
+  /** Custom scene geometry angles & counters */
+  crossAngle: number;
+  cageAngle: number;
+  wedgeAngle: number;
+  overflowCount: number;
+  /** Prism chamber: current polygon rotation (rad), radius (px) and per-side glow 0..1 */
+  polyAngle: number;
+  polyRadius: number;
+  sideGlow: number[];
 }
 

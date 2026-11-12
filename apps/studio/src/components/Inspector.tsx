@@ -5,11 +5,19 @@ import {
   type RuleConfig,
   type BackgroundStyle,
   type BallStyle,
+  type BallColorMode,
+  type TowerHudStyle,
   type FloorStyle,
   PRESETS,
   TowerBreakerSceneSchema,
   MazeEscapeSceneSchema,
-  AlgorithmArenaSchema
+  AlgorithmArenaSchema,
+  CubeArenaSceneSchema,
+  OverflowBowlSceneSchema,
+  OpticalMirrorsSceneSchema,
+  PendulumWaveSceneSchema,
+  PolyOrbitSceneSchema,
+  PrismChamberSceneSchema
 } from "@asmr/schema";
 import { ARENA_PARAM_SPECS, arenaDefaults, type ArenaId } from "@asmr/sim-core";
 import { AudioDirector } from "@asmr/audio-core";
@@ -69,7 +77,18 @@ export const Inspector: React.FC = () => {
     dir.auditionNote();
   };
 
-  const handleSwitchSceneType = (type: "TOWER_BREAKER" | "MAZE_ESCAPE" | "ALGORITHM_ARENA") => {
+  const handleSwitchSceneType = (
+    type:
+      | "TOWER_BREAKER"
+      | "MAZE_ESCAPE"
+      | "CUBE_ARENA"
+      | "OVERFLOW_BOWL"
+      | "OPTICAL_MIRRORS"
+      | "PENDULUM_WAVE"
+      | "POLY_ORBIT"
+      | "PRISM_CHAMBER"
+      | "ALGORITHM_ARENA"
+  ) => {
     if (config.scene.type === type) return;
     updateConfig((p) => {
       if (type === "TOWER_BREAKER") {
@@ -80,6 +99,46 @@ export const Inspector: React.FC = () => {
         p.scene = MazeEscapeSceneSchema.parse({ type: "MAZE_ESCAPE" });
         p.physics.gravity = [0, 0];
         p.physics.speed_lock = 26;
+      } else if (type === "CUBE_ARENA") {
+        p.scene = CubeArenaSceneSchema.parse({ type: "CUBE_ARENA" });
+        p.physics.gravity = [0, 7.5];
+        p.physics.speed_lock = 0;
+        p.look.ball_style = "solid_cube";
+        p.look.color_mode = "rainbow";
+      } else if (type === "OVERFLOW_BOWL") {
+        p.scene = OverflowBowlSceneSchema.parse({ type: "OVERFLOW_BOWL" });
+        p.physics.gravity = [0, 12];
+        p.physics.speed_lock = 0;
+        p.look.ball_style = "shaded_sphere";
+        p.look.color_mode = "rainbow";
+      } else if (type === "OPTICAL_MIRRORS") {
+        p.scene = OpticalMirrorsSceneSchema.parse({ type: "OPTICAL_MIRRORS" });
+        p.physics.gravity = [0, 0];
+        p.physics.speed_lock = 0;
+        p.look.ball_style = "glow";
+        p.look.color_mode = "rainbow";
+        p.sound.note_mapping = "index_degree";
+      } else if (type === "PENDULUM_WAVE") {
+        p.scene = PendulumWaveSceneSchema.parse({ type: "PENDULUM_WAVE" });
+        p.physics.gravity = [0, 0];
+        p.physics.speed_lock = 0;
+        p.look.ball_style = "shaded_sphere";
+        p.look.color_mode = "rainbow";
+        p.sound.note_mapping = "index_degree";
+      } else if (type === "POLY_ORBIT") {
+        p.scene = PolyOrbitSceneSchema.parse({ type: "POLY_ORBIT" });
+        p.physics.gravity = [0, 0];
+        p.physics.speed_lock = 0;
+        p.look.ball_style = "glow";
+        p.look.color_mode = "rainbow";
+        p.sound.note_mapping = "index_degree";
+      } else if (type === "PRISM_CHAMBER") {
+        p.scene = PrismChamberSceneSchema.parse({ type: "PRISM_CHAMBER" });
+        p.physics.gravity = [0, 0.25];
+        p.physics.speed_lock = 0;
+        p.look.ball_style = "neon_ring";
+        p.look.color_mode = "rainbow";
+        p.sound.note_mapping = "index_degree";
       } else {
         p.scene = AlgorithmArenaSchema.parse({
           type: "ALGORITHM_ARENA",
@@ -113,8 +172,8 @@ export const Inspector: React.FC = () => {
       const check = await ExportDirector.checkWebCodecsSupport();
       if (!check.supported) {
         const msg =
-          "WebCodecs VideoEncoder tidak didukung di browser ini: " +
-          (check.reason || "Gunakan Google Chrome atau Microsoft Edge desktop terbaru.");
+          "WebCodecs VideoEncoder is not supported in this browser: " +
+          (check.reason || "Please use the latest desktop Google Chrome or Microsoft Edge.");
         setExportError(msg);
         alert(msg);
         setExporting(false);
@@ -335,22 +394,28 @@ export const Inspector: React.FC = () => {
 
             {/* Mode Scene Switcher */}
             <div>
-              <label className="text-slate-400 block mb-1 font-semibold">Arena Mode</label>
+              <label className="text-slate-400 block mb-1 font-semibold">Arena Mode (9 Engines)</label>
               <div className="grid grid-cols-3 gap-1">
                 {(
                   [
-                    ["TOWER_BREAKER", "Tower Breaker"],
-                    ["MAZE_ESCAPE", "Maze Escape"],
-                    ["ALGORITHM_ARENA", "Algorithm"]
+                    ["TOWER_BREAKER", "Tower Duel"],
+                    ["MAZE_ESCAPE", "Maze Rings"],
+                    ["CUBE_ARENA", "Cube Arena"],
+                    ["OVERFLOW_BOWL", "Overflow Bowl"],
+                    ["OPTICAL_MIRRORS", "Optical Mirrors"],
+                    ["PENDULUM_WAVE", "Pendulum Wave"],
+                    ["POLY_ORBIT", "Poly Orbits"],
+                    ["PRISM_CHAMBER", "Prism Chamber"],
+                    ["ALGORITHM_ARENA", "Algorithms"]
                   ] as const
                 ).map(([t, lbl]) => (
                   <button
                     key={t}
                     onClick={() => handleSwitchSceneType(t)}
-                    className={`py-1.5 rounded font-semibold border cursor-pointer ${
+                    className={`py-1.5 rounded font-semibold border cursor-pointer text-[11px] ${
                       config.scene.type === t
                         ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/50"
-                        : "bg-slate-950 text-slate-400 border-slate-800"
+                        : "bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700"
                     }`}
                   >
                     {lbl}
@@ -520,44 +585,64 @@ export const Inspector: React.FC = () => {
                     />
                   </div>
                   {config.scene.pegs.enabled && (
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="space-y-2">
                       <div>
-                        <span className="text-[10px] text-slate-400 block">Rows</span>
-                        <input
-                          type="number"
-                          min={1}
-                          max={12}
-                          value={config.scene.pegs.rows}
+                        <span className="text-[10px] text-slate-400 block mb-1">Pin Matrix Pattern</span>
+                        <select
+                          value={config.scene.pegs.pattern}
                           onChange={(e) =>
                             updateConfig((p) => {
                               if (p.scene.type === "TOWER_BREAKER")
-                                p.scene.pegs.rows = Math.max(1, Math.min(12, parseInt(e.target.value, 10) || 4));
+                                p.scene.pegs.pattern = e.target.value as "staggered" | "funnel" | "diamond" | "cathedral";
                               return p;
                             })
                           }
-                          className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 font-mono"
-                        />
+                          className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-cyan-300 font-semibold text-[11px]"
+                        >
+                          <option value="staggered">Staggered Pachinko Grid</option>
+                          <option value="funnel">Galton Funnel Pyramid</option>
+                          <option value="diamond">Diamond Lattice</option>
+                          <option value="cathedral">Cathedral Arch Columns</option>
+                        </select>
                       </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 block">Pins / Row</span>
-                        <input
-                          type="number"
-                          min={1}
-                          max={10}
-                          value={config.scene.pegs.per_row}
-                          onChange={(e) =>
-                            updateConfig((p) => {
-                              if (p.scene.type === "TOWER_BREAKER")
-                                p.scene.pegs.per_row = Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 4));
-                              return p;
-                            })
-                          }
-                          className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 font-mono"
-                        />
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 block">Radius (px)</span>
-                        <input
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Rows</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={12}
+                            value={config.scene.pegs.rows}
+                            onChange={(e) =>
+                              updateConfig((p) => {
+                                if (p.scene.type === "TOWER_BREAKER")
+                                  p.scene.pegs.rows = Math.max(1, Math.min(12, parseInt(e.target.value, 10) || 4));
+                                return p;
+                              })
+                            }
+                            className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Pins / Row</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={10}
+                            value={config.scene.pegs.per_row}
+                            onChange={(e) =>
+                              updateConfig((p) => {
+                                if (p.scene.type === "TOWER_BREAKER")
+                                  p.scene.pegs.per_row = Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 4));
+                                return p;
+                              })
+                            }
+                            className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Radius (px)</span>
+                          <input
                           type="number"
                           min={3}
                           max={25}
@@ -573,6 +658,7 @@ export const Inspector: React.FC = () => {
                         />
                       </div>
                     </div>
+                  </div>
                   )}
                 </div>
 
@@ -843,7 +929,7 @@ export const Inspector: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 block">Radius Bola (px)</span>
+                    <span className="text-[10px] text-slate-400 block">Ball Radius (px)</span>
                     <input
                       type="number"
                       min={2}
@@ -1116,6 +1202,854 @@ export const Inspector: React.FC = () => {
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* CUBE ARENA EDITOR */}
+            {config.scene.type === "CUBE_ARENA" && (
+              <div className="space-y-3 pt-2 border-t border-slate-800">
+                <div>
+                  <span className="text-[11px] text-slate-400 block mb-1">Outer Chamber Silhouette</span>
+                  <select
+                    value={config.scene.chamber_shape}
+                    onChange={(e) =>
+                      updateConfig((p) => {
+                        if (p.scene.type === "CUBE_ARENA")
+                          p.scene.chamber_shape = e.target.value as "circle" | "hexagon" | "diamond";
+                        return p;
+                      })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-cyan-400 font-semibold"
+                  >
+                    <option value="hexagon">Hexagonal Centrifuge</option>
+                    <option value="diamond">Diamond Prism Boundary</option>
+                    <option value="circle">Circular Arena Rim</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Initial Cubes</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={300}
+                      value={config.scene.initial_cubes}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "CUBE_ARENA")
+                            p.scene.initial_cubes = Math.max(1, parseInt(e.target.value, 10) || 12);
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Cube Size (px)</span>
+                    <input
+                      type="number"
+                      min={4}
+                      max={32}
+                      value={config.scene.cube_size}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "CUBE_ARENA")
+                            p.scene.cube_size = Math.max(4, Math.min(32, parseFloat(e.target.value) || 12));
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Outer Circle Radius</span>
+                    <input
+                      type="number"
+                      min={200}
+                      max={510}
+                      step={10}
+                      value={config.scene.outer_radius}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "CUBE_ARENA")
+                            p.scene.outer_radius = Math.max(200, Math.min(510, parseFloat(e.target.value) || 440));
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Max Cubes Cap</span>
+                    <input
+                      type="number"
+                      min={20}
+                      max={2000}
+                      step={20}
+                      value={config.scene.max_cubes}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "CUBE_ARENA")
+                            p.scene.max_cubes = Math.max(20, Math.min(2000, parseInt(e.target.value, 10) || 400));
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-slate-950 p-2.5 rounded border border-slate-800 space-y-2">
+                  <span className="font-semibold text-slate-300 block text-[11px]">Spinning Cross & Escape Cage</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block">Cross Blades (0-8)</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={8}
+                        value={config.scene.cross_blades}
+                        onChange={(e) =>
+                          updateConfig((p) => {
+                            if (p.scene.type === "CUBE_ARENA")
+                              p.scene.cross_blades = Math.max(0, Math.min(8, parseInt(e.target.value, 10) || 0));
+                            return p;
+                          })
+                        }
+                        className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block">Cross Speed (rad/s)</span>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={config.scene.cross_speed}
+                        onChange={(e) =>
+                          updateConfig((p) => {
+                            if (p.scene.type === "CUBE_ARENA")
+                              p.scene.cross_speed = parseFloat(e.target.value) || 0;
+                            return p;
+                          })
+                        }
+                        className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 font-mono"
+                      />
+                    </div>
+                  </div>
+                  <label className="flex items-center justify-between cursor-pointer pt-1">
+                    <span className="text-slate-300">Central Escape Hatch Cage</span>
+                    <input
+                      type="checkbox"
+                      checked={config.scene.cage_enabled}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "CUBE_ARENA") p.scene.cage_enabled = e.target.checked;
+                          return p;
+                        })
+                      }
+                      className="accent-cyan-400 w-4 h-4"
+                    />
+                  </label>
+                  {config.scene.cage_enabled && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-[10px] text-slate-400 block">Cage Size (px)</span>
+                        <input
+                          type="number"
+                          min={60}
+                          max={240}
+                          value={config.scene.cage_size}
+                          onChange={(e) =>
+                            updateConfig((p) => {
+                              if (p.scene.type === "CUBE_ARENA")
+                                p.scene.cage_size = Math.max(60, parseFloat(e.target.value) || 135);
+                              return p;
+                            })
+                          }
+                          className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 block">+Split on Escape</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={6}
+                          value={config.scene.split_on_escape}
+                          onChange={(e) =>
+                            updateConfig((p) => {
+                              if (p.scene.type === "CUBE_ARENA")
+                                p.scene.split_on_escape = Math.max(0, Math.min(6, parseInt(e.target.value, 10) || 0));
+                              return p;
+                            })
+                          }
+                          className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 font-mono"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* OVERFLOW BOWL EDITOR */}
+            {config.scene.type === "OVERFLOW_BOWL" && (
+              <div className="space-y-3 pt-2 border-t border-slate-800">
+                <div>
+                  <span className="text-[11px] text-slate-400 block mb-1">Vessel Architecture</span>
+                  <select
+                    value={config.scene.bowl_shape}
+                    onChange={(e) =>
+                      updateConfig((p) => {
+                        if (p.scene.type === "OVERFLOW_BOWL")
+                          p.scene.bowl_shape = e.target.value as "u_bowl" | "goblet_funnel";
+                        return p;
+                      })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-cyan-400 font-semibold"
+                  >
+                    <option value="goblet_funnel">Chalice Goblet Vessel</option>
+                    <option value="u_bowl">Wide U-Bowl Chamber</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Initial Balls</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={config.scene.initial_balls}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "OVERFLOW_BOWL")
+                            p.scene.initial_balls = Math.max(1, parseInt(e.target.value, 10) || 2);
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Ball Radius (px)</span>
+                    <input
+                      type="number"
+                      min={3}
+                      max={20}
+                      value={config.scene.ball_radius}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "OVERFLOW_BOWL")
+                            p.scene.ball_radius = Math.max(3, Math.min(20, parseFloat(e.target.value) || 9));
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Bowl Radius (px)</span>
+                    <input
+                      type="number"
+                      min={200}
+                      max={500}
+                      step={10}
+                      value={config.scene.bowl_radius}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "OVERFLOW_BOWL")
+                            p.scene.bowl_radius = Math.max(200, Math.min(500, parseFloat(e.target.value) || 420));
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Swing Speed (rad/s)</span>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min={0.2}
+                      max={8}
+                      value={config.scene.swing_speed}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "OVERFLOW_BOWL")
+                            p.scene.swing_speed = Math.max(0.2, parseFloat(e.target.value) || 2.0);
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <label className="flex items-center justify-between cursor-pointer bg-slate-950 p-2.5 rounded border border-slate-800">
+                  <span className="font-semibold text-slate-300">Every Hit Splits a Ball</span>
+                  <input
+                    type="checkbox"
+                    checked={config.scene.split_on_hit}
+                    onChange={(e) =>
+                      updateConfig((p) => {
+                        if (p.scene.type === "OVERFLOW_BOWL") p.scene.split_on_hit = e.target.checked;
+                        return p;
+                      })
+                    }
+                    className="accent-cyan-400 w-4 h-4"
+                  />
+                </label>
+
+                <div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Split Cooldown Gate</span>
+                    <span className="font-mono text-cyan-400">{config.scene.split_cooldown_ms} ms</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={40}
+                    max={600}
+                    step={20}
+                    value={config.scene.split_cooldown_ms}
+                    onChange={(e) =>
+                      updateConfig((p) => {
+                        if (p.scene.type === "OVERFLOW_BOWL")
+                          p.scene.split_cooldown_ms = parseInt(e.target.value, 10);
+                        return p;
+                      })
+                    }
+                    className="w-full accent-cyan-400 cursor-pointer"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* OPTICAL MIRRORS EDITOR */}
+            {config.scene.type === "OPTICAL_MIRRORS" && (
+              <div className="space-y-3 pt-2 border-t border-slate-800">
+                <div>
+                  <span className="text-[11px] text-slate-400 block mb-1">Curved Mirror Geometry</span>
+                  <select
+                    value={config.scene.mirror_shape}
+                    onChange={(e) =>
+                      updateConfig((p) => {
+                        if (p.scene.type === "OPTICAL_MIRRORS")
+                          p.scene.mirror_shape = e.target.value as "vesica_piscis" | "ellipse" | "circle";
+                        return p;
+                      })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-cyan-400 font-semibold"
+                  >
+                    <option value="vesica_piscis">Vesica Piscis (Twin Curved Lens)</option>
+                    <option value="ellipse">True Optical Ellipse (Twin Foci)</option>
+                    <option value="circle">Circular Mandala Reflector</option>
+                  </select>
+                </div>
+
+                <div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400 text-[11px]">Lens Precession Spin</span>
+                    <span className="font-mono text-cyan-400">{config.scene.mirror_spin.toFixed(2)} rad/s</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={-1.5}
+                    max={1.5}
+                    step={0.05}
+                    value={config.scene.mirror_spin}
+                    onChange={(e) =>
+                      updateConfig((p) => {
+                        if (p.scene.type === "OPTICAL_MIRRORS")
+                          p.scene.mirror_spin = parseFloat(e.target.value);
+                        return p;
+                      })
+                    }
+                    className="w-full accent-cyan-400 cursor-pointer"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Balls Count (Rays)</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={128}
+                      value={config.scene.ball_count}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "OPTICAL_MIRRORS")
+                            p.scene.ball_count = Math.max(1, Math.min(128, parseInt(e.target.value, 10) || 16));
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Optical Speed (m/s)</span>
+                    <input
+                      type="number"
+                      min={4}
+                      max={60}
+                      value={config.scene.ball_speed}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "OPTICAL_MIRRORS")
+                            p.scene.ball_speed = Math.max(4, Math.min(60, parseFloat(e.target.value) || 23));
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Lens Width (px)</span>
+                    <input
+                      type="number"
+                      min={300}
+                      max={1020}
+                      step={20}
+                      value={config.scene.width_px}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "OPTICAL_MIRRORS")
+                            p.scene.width_px = Math.max(300, Math.min(1020, parseInt(e.target.value, 10) || 740));
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Lens Height (px)</span>
+                    <input
+                      type="number"
+                      min={400}
+                      max={1600}
+                      step={20}
+                      value={config.scene.height_px}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "OPTICAL_MIRRORS")
+                            p.scene.height_px = Math.max(400, Math.min(1600, parseInt(e.target.value, 10) || 1320));
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 bg-slate-950 p-2.5 rounded border border-slate-800">
+                  <label className="flex items-center justify-between cursor-pointer">
+                    <span className="text-slate-300">Draw Radial Geometric Rays</span>
+                    <input
+                      type="checkbox"
+                      checked={config.scene.show_rays}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "OPTICAL_MIRRORS") p.scene.show_rays = e.target.checked;
+                          return p;
+                        })
+                      }
+                      className="accent-cyan-400 w-4 h-4"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between cursor-pointer">
+                    <span className="text-slate-300">Show Optical Reference Grid</span>
+                    <input
+                      type="checkbox"
+                      checked={config.scene.show_grid}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "OPTICAL_MIRRORS") p.scene.show_grid = e.target.checked;
+                          return p;
+                        })
+                      }
+                      className="accent-cyan-400 w-4 h-4"
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* PENDULUM WAVE HARP EDITOR */}
+            {config.scene.type === "PENDULUM_WAVE" && (
+              <div className="space-y-3 pt-2 border-t border-slate-800">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Pendulum Strings (4–32)</span>
+                    <input
+                      type="number"
+                      min={4}
+                      max={32}
+                      value={config.scene.count}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "PENDULUM_WAVE")
+                            p.scene.count = Math.max(4, Math.min(32, parseInt(e.target.value, 10) || 18));
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Base Cycles / Video</span>
+                    <input
+                      type="number"
+                      min={5}
+                      max={80}
+                      value={config.scene.base_cycles}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "PENDULUM_WAVE")
+                            p.scene.base_cycles = Math.max(5, Math.min(80, parseInt(e.target.value, 10) || 24));
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Cycle Step per String</span>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min={0.5}
+                      max={4}
+                      value={config.scene.cycle_step}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "PENDULUM_WAVE")
+                            p.scene.cycle_step = Math.max(0.5, Math.min(4, parseFloat(e.target.value) || 1));
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Swing Amplitude (px)</span>
+                    <input
+                      type="number"
+                      min={120}
+                      max={460}
+                      step={10}
+                      value={config.scene.amplitude_px}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "PENDULUM_WAVE")
+                            p.scene.amplitude_px = Math.max(120, Math.min(460, parseInt(e.target.value, 10) || 380));
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[11px] text-slate-400 block mb-1">Note Strike Trigger Zone</span>
+                  <select
+                    value={config.scene.trigger}
+                    onChange={(e) =>
+                      updateConfig((p) => {
+                        if (p.scene.type === "PENDULUM_WAVE")
+                          p.scene.trigger = e.target.value as "center" | "extremes" | "both";
+                        return p;
+                      })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-cyan-400 font-semibold"
+                  >
+                    <option value="center">Center Laser Line (Vertical Harp Pluck)</option>
+                    <option value="extremes">Left & Right Turning Extremes</option>
+                    <option value="both">Both Center & Extremes (Double Tempo)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5 bg-slate-950 p-2.5 rounded border border-slate-800">
+                  <label className="flex items-center justify-between cursor-pointer">
+                    <span className="text-slate-300">Show Harmonic Wave Ribbon</span>
+                    <input
+                      type="checkbox"
+                      checked={config.scene.show_strings}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "PENDULUM_WAVE") p.scene.show_strings = e.target.checked;
+                          return p;
+                        })
+                      }
+                      className="accent-cyan-400 w-4 h-4"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between cursor-pointer">
+                    <span className="text-slate-300">Show Horizontal Track Guides</span>
+                    <input
+                      type="checkbox"
+                      checked={config.scene.show_rest_marks}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "PENDULUM_WAVE") p.scene.show_rest_marks = e.target.checked;
+                          return p;
+                        })
+                      }
+                      className="accent-cyan-400 w-4 h-4"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between cursor-pointer">
+                    <span className="text-slate-300">Liquid Silk Phase Ribbon</span>
+                    <input
+                      type="checkbox"
+                      checked={config.scene.wave_ribbon}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "PENDULUM_WAVE") p.scene.wave_ribbon = e.target.checked;
+                          return p;
+                        })
+                      }
+                      className="accent-cyan-400 w-4 h-4"
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* CELESTIAL POLYRHYTHM ORBIT EDITOR */}
+            {config.scene.type === "POLY_ORBIT" && (
+              <div className="space-y-3 pt-2 border-t border-slate-800">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Concentric Orbits (3–24)</span>
+                    <input
+                      type="number"
+                      min={3}
+                      max={24}
+                      value={config.scene.orbits}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "POLY_ORBIT")
+                            p.scene.orbits = Math.max(3, Math.min(24, parseInt(e.target.value, 10) || 16));
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Radial Strike Gates (1–4)</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={4}
+                      value={config.scene.gates}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "POLY_ORBIT")
+                            p.scene.gates = Math.max(1, Math.min(4, parseInt(e.target.value, 10) || 2));
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Base Orbit Revolutions</span>
+                    <input
+                      type="number"
+                      min={2}
+                      max={40}
+                      value={config.scene.first_ratio}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "POLY_ORBIT")
+                            p.scene.first_ratio = Math.max(2, Math.min(40, parseInt(e.target.value, 10) || 10));
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Ratio Step / Orbit</span>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min={0.5}
+                      max={4}
+                      value={config.scene.ratio_step}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "POLY_ORBIT")
+                            p.scene.ratio_step = Math.max(0.5, Math.min(4, parseFloat(e.target.value) || 1));
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[11px] text-slate-400 block mb-1">Orbital Direction Mode</span>
+                  <select
+                    value={config.scene.direction_mode}
+                    onChange={(e) =>
+                      updateConfig((p) => {
+                        if (p.scene.type === "POLY_ORBIT")
+                          p.scene.direction_mode = e.target.value as "same" | "alternate";
+                        return p;
+                      })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-cyan-400 font-semibold"
+                  >
+                    <option value="same">Co-Rotating Spiral Wave</option>
+                    <option value="alternate">Counter-Rotating Alternating Rings</option>
+                  </select>
+                </div>
+
+                <label className="flex items-center justify-between cursor-pointer bg-slate-950 p-2.5 rounded border border-slate-800">
+                  <span className="text-slate-300">Harmonic Constellation Threads</span>
+                  <input
+                    type="checkbox"
+                    checked={config.scene.constellation_links}
+                    onChange={(e) =>
+                      updateConfig((p) => {
+                        if (p.scene.type === "POLY_ORBIT") p.scene.constellation_links = e.target.checked;
+                        return p;
+                      })
+                    }
+                    className="accent-cyan-400 w-4 h-4"
+                  />
+                </label>
+              </div>
+            )}
+
+            {/* CHROMATIC PRISM CHAMBER EDITOR */}
+            {config.scene.type === "PRISM_CHAMBER" && (
+              <div className="space-y-3 pt-2 border-t border-slate-800">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Polygon Sides (3–12)</span>
+                    <input
+                      type="number"
+                      min={3}
+                      max={12}
+                      value={config.scene.sides}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "PRISM_CHAMBER")
+                            p.scene.sides = Math.max(3, Math.min(12, parseInt(e.target.value, 10) || 7));
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Prism Radius (px)</span>
+                    <input
+                      type="number"
+                      min={220}
+                      max={490}
+                      step={10}
+                      value={config.scene.radius}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "PRISM_CHAMBER")
+                            p.scene.radius = Math.max(220, Math.min(490, parseInt(e.target.value, 10) || 420));
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Wall Hits / Split</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={30}
+                      value={config.scene.hits_per_split}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "PRISM_CHAMBER")
+                            p.scene.hits_per_split = Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 4));
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Max Refracted Orbs</span>
+                    <input
+                      type="number"
+                      min={10}
+                      max={600}
+                      step={10}
+                      value={config.scene.max_balls}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "PRISM_CHAMBER")
+                            p.scene.max_balls = Math.max(10, Math.min(600, parseInt(e.target.value, 10) || 160));
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Prism Spin (rad/s)</span>
+                    <input
+                      type="number"
+                      step="0.05"
+                      value={config.scene.spin}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "PRISM_CHAMBER")
+                            p.scene.spin = parseFloat(e.target.value) || 0;
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Breathing Amp (0–0.35)</span>
+                    <input
+                      type="number"
+                      step="0.02"
+                      min={0}
+                      max={0.35}
+                      value={config.scene.breathe_amp}
+                      onChange={(e) =>
+                        updateConfig((p) => {
+                          if (p.scene.type === "PRISM_CHAMBER")
+                            p.scene.breathe_amp = Math.max(0, Math.min(0.35, parseFloat(e.target.value) || 0));
+                          return p;
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <label className="flex items-center justify-between cursor-pointer bg-slate-950 p-2.5 rounded border border-slate-800">
+                  <span className="font-semibold text-slate-300">Orbs Inherit Struck Wall Hue</span>
+                  <input
+                    type="checkbox"
+                    checked={config.scene.inherit_color}
+                    onChange={(e) =>
+                      updateConfig((p) => {
+                        if (p.scene.type === "PRISM_CHAMBER") p.scene.inherit_color = e.target.checked;
+                        return p;
+                      })
+                    }
+                    className="accent-cyan-400 w-4 h-4"
+                  />
+                </label>
               </div>
             )}
           </div>
@@ -1431,6 +2365,8 @@ export const Inspector: React.FC = () => {
                 className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-cyan-400 font-semibold"
               >
                 <option value="kalimba_glow">Kalimba Glow (Warm, Tinkling)</option>
+                <option value="handpan_steel">Handpan Steel (Metallic Tongue Drum)</option>
+                <option value="celesta_chime">Celesta Chime (Glassy Orchestral Bell)</option>
                 <option value="glass_bell">Glass Bell (Crystal, Pure)</option>
                 <option value="marimba_wood">Marimba Wood (Deep, Woody)</option>
                 <option value="thocky_keys">Thocky Keys (Mechanical Thock)</option>
@@ -1545,6 +2481,7 @@ export const Inspector: React.FC = () => {
                 className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1"
               >
                 <option value="melodic_step">Melodic Arpeggio (Harmonic ASMR Rhythms)</option>
+                <option value="index_degree">Object / String Degree (Harp, Orbits & Prism)</option>
                 <option value="floor_level">Floor Depth (Deeper = Higher Pitch)</option>
                 <option value="x_position">Horizontal X Position (Left Low → Right High)</option>
                 <option value="lane_floor">Lane Index & Floor Tier</option>
@@ -1818,7 +2755,7 @@ export const Inspector: React.FC = () => {
 
             {/* Ball Style */}
             <div>
-              <span className="text-[11px] text-slate-400 block mb-1">Ball Visual Style</span>
+              <span className="text-[11px] text-slate-400 block mb-1">Ball / Object Shape Style</span>
               <select
                 value={config.look.ball_style ?? "glow"}
                 onChange={(e) =>
@@ -1833,6 +2770,45 @@ export const Inspector: React.FC = () => {
                 <option value="neon_ring">Hollow Neon Ring / Photon (Energy Ring)</option>
                 <option value="shaded_sphere">3D Shaded Marble Sphere (Glass Marble)</option>
                 <option value="sparkle_particle">Sparkle Star / Diamond (Crystal Sparkle)</option>
+                <option value="solid_cube">3D Tumbling Shaded Cube (Cube Arena)</option>
+                <option value="neon_cube">Hollow Neon Glowing Cube (Cyber Square)</option>
+              </select>
+            </div>
+
+            {/* Color Mode */}
+            <div>
+              <span className="text-[11px] text-slate-400 block mb-1">Object Color Palette Mode</span>
+              <select
+                value={config.look.color_mode ?? "lane"}
+                onChange={(e) =>
+                  updateConfig((p) => ({
+                    ...p,
+                    look: { ...p.look, color_mode: e.target.value as BallColorMode }
+                  }))
+                }
+                className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-cyan-400 font-semibold"
+              >
+                <option value="lane">Lane / Scene Theme Color</option>
+                <option value="rainbow">Full-Spectrum Rainbow (Per-Object Hue)</option>
+                <option value="velocity">Velocity Heat Map (Dynamic Energy)</option>
+              </select>
+            </div>
+
+            {/* Tower HUD Style */}
+            <div>
+              <span className="text-[11px] text-slate-400 block mb-1">Tower HUD Layout</span>
+              <select
+                value={config.look.tower_hud_style ?? "classic"}
+                onChange={(e) =>
+                  updateConfig((p) => ({
+                    ...p,
+                    look: { ...p.look, tower_hud_style: e.target.value as TowerHudStyle }
+                  }))
+                }
+                className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-cyan-400 font-semibold"
+              >
+                <option value="classic">Classic Edge-to-Edge Lanes</option>
+                <option value="duel_cards">Framed Broadcast Duel Cards (VS / LEADER)</option>
               </select>
             </div>
 

@@ -18,7 +18,9 @@ export const RECIPES: Record<PaletteName, Recipe> = {
   synth_pluck: { ratios: [1, 2, 3, 4, 6], decays: [0.38, 0.22, 0.14, 0.08, 0.04], amps: [1, 0.65, 0.4, 0.25, 0.12] },
   music_box: { ratios: [1, 5.82, 9.4], decays: [1.1, 0.35, 0.09], amps: [1, 0.45, 0.18] },
   crystal_bowl: { ratios: [1, 1.006, 2.76, 5.4], decays: [2.0, 1.8, 1.2, 0.7], amps: [1, 0.85, 0.35, 0.15] },
-  cosmic_laser: { ratios: [1, 2.5], decays: [0.14, 0.05], amps: [1, 0.3] }
+  cosmic_laser: { ratios: [1, 2.5], decays: [0.14, 0.05], amps: [1, 0.3] },
+  handpan_steel: { ratios: [1, 2, 2.99, 4.02], decays: [1.25, 0.65, 0.28, 0.12], amps: [1, 0.55, 0.26, 0.1] },
+  celesta_chime: { ratios: [1, 3.01, 5.18, 8.2], decays: [1.4, 0.75, 0.35, 0.14], amps: [1, 0.42, 0.22, 0.09] }
 };
 
 /** Tiny deterministic noise source (LCG) so synthesis never touches Math.random. */

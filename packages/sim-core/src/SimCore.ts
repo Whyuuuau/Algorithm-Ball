@@ -4,7 +4,13 @@ import { SeededRNGPool, hashFnv1a } from "./prng/index.js";
 import { PopulationGovernor } from "./governor/PopulationGovernor.js";
 import { BallPool } from "./engine/BallPool.js";
 import { ArenaScene } from "./engine/ArenaScene.js";
+import { CubeArenaScene } from "./engine/CubeArenaScene.js";
 import { MazeScene } from "./engine/MazeScene.js";
+import { OpticalMirrorsScene } from "./engine/OpticalMirrorsScene.js";
+import { OverflowBowlScene } from "./engine/OverflowBowlScene.js";
+import { PendulumWaveScene } from "./engine/PendulumWaveScene.js";
+import { PolyOrbitScene } from "./engine/PolyOrbitScene.js";
+import { PrismChamberScene } from "./engine/PrismChamberScene.js";
 import { TowerScene, type Scene, type SceneContext } from "./engine/TowerScene.js";
 import type { HitEvent, SimSnapshot } from "./engine/types.js";
 import { RuleEngine, type RuleTrigger } from "./rules/RuleEngine.js";
@@ -83,6 +89,24 @@ export class SimCore {
       case "MAZE_ESCAPE":
         this.scene = new MazeScene(ctx);
         break;
+      case "CUBE_ARENA":
+        this.scene = new CubeArenaScene(ctx);
+        break;
+      case "OVERFLOW_BOWL":
+        this.scene = new OverflowBowlScene(ctx);
+        break;
+      case "OPTICAL_MIRRORS":
+        this.scene = new OpticalMirrorsScene(ctx);
+        break;
+      case "PENDULUM_WAVE":
+        this.scene = new PendulumWaveScene(ctx);
+        break;
+      case "POLY_ORBIT":
+        this.scene = new PolyOrbitScene(ctx);
+        break;
+      case "PRISM_CHAMBER":
+        this.scene = new PrismChamberScene(ctx);
+        break;
       default: {
         const a = new ArenaScene(ctx);
         a.renderEnabled = this.renderPixels;
@@ -114,7 +138,14 @@ export class SimCore {
       imageH: 0,
       arenaHud: [],
       progress: 0,
-      hash: 0
+      hash: 0,
+      crossAngle: 0,
+      cageAngle: 0,
+      wedgeAngle: 0,
+      overflowCount: 0,
+      polyAngle: 0,
+      polyRadius: 0,
+      sideGlow: []
     };
   }
 

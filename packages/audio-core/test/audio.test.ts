@@ -53,7 +53,7 @@ describe("@asmr/audio-core", () => {
   it("schedules notes with quantization, chord-on-density, and renders peak-limited stereo PCM", () => {
     const soundCfg = structuredClone(CLASSIC_3_TOWERS_PRESET.sound);
     soundCfg.quantizer.mode = "HARMONIC";
-    soundCfg.chord_on_density = true;
+    soundCfg.chord_on_density.enabled = true;
 
     const director = new AudioDirector(soundCfg);
     const hits = [];

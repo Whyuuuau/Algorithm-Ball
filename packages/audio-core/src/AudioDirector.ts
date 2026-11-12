@@ -91,13 +91,20 @@ export class AudioDirector {
       deg = Math.floor(Math.max(0, Math.min(0.999, ev.x)) * span);
     } else if (cfg.note_mapping === "lane_floor") {
       deg = (ev.lane * 3 + Math.abs(ev.index)) % span;
+    } else if (cfg.note_mapping === "index_degree") {
+      // Every pendulum / planet / polygon side owns one fixed scale degree (index 1 = lowest).
+      deg = (Math.max(1, Math.abs(ev.index)) - 1) % span;
     } else {
       const h = Math.imul((ev.index * 2654435761) ^ Math.round(ev.x * 997), 1597334677) >>> 0;
       deg = h % span;
     }
 
     const base = notes[Math.max(0, Math.min(span - 1, deg))];
-    const floorEsc = Math.min(18, Math.max(0, ev.index - 1) * cfg.escalation.pitch_semitones_per_floor);
+    // Fixed-degree scenes keep their exact pitch; floor escalation only applies to climbing scenes.
+    const floorEsc =
+      cfg.note_mapping === "index_degree"
+        ? 0
+        : Math.min(18, Math.max(0, ev.index - 1) * cfg.escalation.pitch_semitones_per_floor);
     const tensEsc = tension * cfg.escalation.tension_semitones;
     const breakBoost = ev.kind === "break" || ev.kind === "ring_break" || ev.kind === "exit" ? 7 : 0;
     return Math.max(36, Math.min(96, Math.round(base + floorEsc + tensEsc + breakBoost + ev.shift)));
@@ -106,6 +113,10 @@ export class AudioDirector {
   private quantizeMidi(rawMidi: number, t: number): number {
     const q = this.config.quantizer;
     if (q.mode === "FREE") return rawMidi;
+    // Fixed-degree instruments keep their clean diatonic/pentatonic scale ordering
+    if (this.config.note_mapping === "index_degree" && q.mode === "HARMONIC") {
+      return Math.max(36, Math.min(96, this.scale.nearest(rawMidi)));
+    }
     const barSec = (60 / Math.max(40, q.bpm)) * 4;
     const prog = q.progression.length > 0 ? q.progression : ["I"];
     const chordIdx = Math.max(0, Math.floor((Number.isFinite(t) ? t : 0) / (barSec * 2))) % prog.length;
@@ -582,8 +593,9 @@ export class AudioDirector {
     const src = ctx.createBufferSource();
     src.buffer = buffer;
 
+    const polyScale = 1 / Math.sqrt(Math.max(1, this.activeVoices * 0.35));
     const gain = ctx.createGain();
-    gain.gain.value = Math.max(0.05, Math.min(1, vel * 0.7));
+    gain.gain.value = Math.max(0.04, Math.min(0.9, vel * 0.72 * polyScale));
 
     const pan = ctx.createStereoPanner();
     pan.pan.value = this.config.spatial.pan ? Math.max(-1, Math.min(1, x * 2 - 1)) : 0;
